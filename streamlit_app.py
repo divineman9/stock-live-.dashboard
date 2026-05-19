@@ -311,7 +311,7 @@ st.markdown("""
 
 
 # --- Main App ---
-st.title("📊 Live Stock Market Dashboard")
+st.markdown("<h1 style='text-align:center;'>♃ GGP (God Given Patterns)</h1>", unsafe_allow_html=True)
 
 # Fetch data
 with st.spinner("Loading market data..."):
