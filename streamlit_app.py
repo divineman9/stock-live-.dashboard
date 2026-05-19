@@ -431,6 +431,105 @@ if spy_data_breadth:
         </div>
         """, unsafe_allow_html=True)
 
+# --- Beast Mode Detection ---
+@st.cache_data(ttl=60)
+def fetch_beast_mode_data():
+    """Fetch 5-day data for SPY top weights to calculate normal range."""
+    SPY_WEIGHTS = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "BRK-B", "LLY", "JPM", "AVGO"]
+    symbols = ",".join(SPY_WEIGHTS)
+    url = f"https://query1.finance.yahoo.com/v8/finance/spark?symbols={symbols}&range=5d&interval=1d&includePrePost=true"
+    try:
+        resp = requests.get(url, headers=YAHOO_HEADERS, timeout=10)
+        resp.raise_for_status()
+        raw = resp.json()
+
+        result = {}
+        for sym in SPY_WEIGHTS:
+            info = raw.get(sym)
+            if not info:
+                continue
+            closes = info.get("close", [])
+            if len(closes) < 3:
+                continue
+
+            # Calculate average daily % move from last 5 days
+            daily_moves = []
+            for i in range(1, len(closes)):
+                if closes[i] is not None and closes[i-1] is not None and closes[i-1] != 0:
+                    move = abs((closes[i] - closes[i-1]) / closes[i-1]) * 100
+                    daily_moves.append(move)
+
+            avg_move = sum(daily_moves) / len(daily_moves) if daily_moves else 1.0
+
+            # Today's move
+            if len(closes) >= 2 and closes[-1] is not None and closes[-2] is not None and closes[-2] != 0:
+                today_move = ((closes[-1] - closes[-2]) / closes[-2]) * 100
+            else:
+                today_move = 0
+
+            result[sym] = {
+                "ticker": sym,
+                "avg_daily_move": round(avg_move, 2),
+                "today_move": round(today_move, 2),
+                "today_abs": round(abs(today_move), 2),
+                "multiplier": round(abs(today_move) / avg_move, 1) if avg_move > 0 else 0,
+                "direction": "up" if today_move > 0 else "down",
+            }
+        return result
+    except:
+        return None
+
+beast_data = fetch_beast_mode_data()
+if beast_data:
+    # Find stocks moving 2x+ their normal range
+    beast_stocks = {k: v for k, v in beast_data.items() if v["multiplier"] >= 2.0}
+    beast_up = [v for v in beast_stocks.values() if v["direction"] == "up"]
+    beast_down = [v for v in beast_stocks.values() if v["direction"] == "down"]
+
+    # Beast mode triggers if 3+ heavyweights are 2x in same direction
+    beast_mode = False
+    beast_direction = None
+
+    if len(beast_up) >= 3:
+        beast_mode = True
+        beast_direction = "bullish"
+    elif len(beast_down) >= 3:
+        beast_mode = True
+        beast_direction = "bearish"
+
+    if beast_mode:
+        if beast_direction == "bullish":
+            banner_color = "#276749"
+            banner_bg = "#c6f6d5"
+            banner_text = "🔥 BEAST MODE ACTIVATED"
+            beast_list = sorted(beast_up, key=lambda x: x["multiplier"], reverse=True)
+        else:
+            banner_color = "#9b2c2c"
+            banner_bg = "#fed7d7"
+            banner_text = "🩸 BEAST MODE ACTIVATED (BEARISH)"
+            beast_list = sorted(beast_down, key=lambda x: x["multiplier"], reverse=True)
+
+        st.markdown(f"""
+        <div style="background:{banner_bg};border:2px solid {banner_color};border-radius:12px;padding:16px;text-align:center;margin-bottom:16px;">
+            <div style="font-size:1.4rem;font-weight:800;color:{banner_color};">{banner_text}</div>
+            <div style="font-size:0.85rem;color:#4a5568;margin-top:4px;">{len(beast_list)} mega-caps moving 2x+ their normal range — click below for details</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        with st.expander("👀 See Beast Mode Details"):
+            dir_word = "UP" if beast_direction == "bullish" else "DOWN"
+            st.markdown(f"**{len(beast_list)} SPY heavyweights in beast mode — all pushing {dir_word}:**")
+            for s in beast_list:
+                sign = "+" if s["today_move"] > 0 else ""
+                st.markdown(
+                    f"- **{s['ticker']}** {sign}{s['today_move']:.1f}% today "
+                    f"(normal: ±{s['avg_daily_move']:.1f}%) — **{s['multiplier']:.1f}x** usual move"
+                )
+            if beast_direction == "bullish":
+                st.markdown("*These heavyweights are in beast mode pushing SPY hard. Strong conviction rally.*")
+            else:
+                st.markdown("*Mega-caps dumping aggressively. High conviction selling pressure on SPY.*")
+
 # --- Index Bar ---
 st.subheader("Market Indices")
 idx_cols = st.columns(3)
