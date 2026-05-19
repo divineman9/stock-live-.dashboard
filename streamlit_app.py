@@ -115,12 +115,21 @@ def fetch_all_data():
                 if sym not in ALL_TICKERS:
                     continue
                 closes = info.get("close", [])
-                prev_close = info.get("chartPreviousClose")
-                if not closes or prev_close is None:
+                if not closes or len(closes) < 1:
                     continue
-                price = closes[-1]
-                if price is None or prev_close == 0:
+
+                # With range=2d: closes[0]=yesterday, closes[1]=today
+                # With range=1d or only 1 close: use chartPreviousClose
+                if len(closes) >= 2:
+                    price = closes[-1]       # today's latest
+                    prev_close = closes[-2]  # yesterday's close
+                else:
+                    price = closes[-1]
+                    prev_close = info.get("chartPreviousClose")
+
+                if price is None or not prev_close or prev_close == 0:
                     continue
+
                 change = price - prev_close
                 pct_change = (change / prev_close) * 100
 
