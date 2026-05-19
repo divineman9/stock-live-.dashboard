@@ -72,7 +72,8 @@ def fetch_chart_single(ticker):
         resp.raise_for_status()
         result = resp.json()["chart"]["result"][0]
         meta = result["meta"]
-        prev_close = meta.get("regularMarketPrice", 0)
+        # chartPreviousClose = yesterday's close (correct reference)
+        prev_close = meta.get("chartPreviousClose") or meta.get("previousClose", 0)
         closes = result["indicators"]["quote"][0]["close"]
         valid_closes = [c for c in closes if c is not None]
         latest_price = valid_closes[-1] if valid_closes else None
