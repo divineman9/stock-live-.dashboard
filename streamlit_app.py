@@ -530,6 +530,88 @@ if beast_data:
             else:
                 st.markdown("*Mega-caps dumping aggressively. High conviction selling pressure on SPY.*")
 
+# --- Day High/Low Breakout Alerts ---
+@st.cache_data(ttl=25)
+def fetch_day_highlow():
+    """Fetch intraday high/low for Core stocks to detect breakouts."""
+    CORE_TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "BRK-B", "LLY", "JPM", "AVGO"]
+    alerts = []
+    
+    def check_ticker(ticker):
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1m&range=1d&includePrePost=false"
+        try:
+            resp = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+            if resp.status_code != 200:
+                return None
+            result = resp.json()["chart"]["result"][0]
+            meta = result["meta"]
+            day_high = meta.get("regularMarketDayHigh", 0)
+            day_low = meta.get("regularMarketDayLow", 0)
+            current = meta.get("regularMarketPrice", 0)
+            prev_close = meta.get("chartPreviousClose", 0)
+            
+            if not day_high or not day_low or not current:
+                return None
+            
+            # Check if current price is within 0.1% of day high or day low
+            near_high = current >= day_high * 0.999
+            near_low = current <= day_low * 1.001
+            
+            if near_high:
+                return {
+                    "ticker": ticker,
+                    "type": "high",
+                    "price": round(current, 2),
+                    "level": round(day_high, 2),
+                    "day_low": round(day_low, 2),
+                    "prev_close": round(prev_close, 2),
+                }
+            elif near_low:
+                return {
+                    "ticker": ticker,
+                    "type": "low",
+                    "price": round(current, 2),
+                    "level": round(day_low, 2),
+                    "day_high": round(day_high, 2),
+                    "prev_close": round(prev_close, 2),
+                }
+            return None
+        except:
+            return None
+    
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        results = list(ex.map(check_ticker, CORE_TICKERS))
+    
+    return [r for r in results if r is not None]
+
+breakout_alerts = fetch_day_highlow()
+if breakout_alerts:
+    st.markdown("""
+    <div style="background:#fffbeb;border:2px solid #f6ad55;border-radius:12px;padding:14px 18px;margin-bottom:16px;">
+        <div style="font-weight:700;color:#c05621;margin-bottom:8px;">🚨 Live Breakout Alerts (Core Stocks)</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    for alert in breakout_alerts:
+        if alert["type"] == "high":
+            st.markdown(
+                f'<div style="background:#c6f6d5;border-radius:8px;padding:10px 14px;margin-bottom:6px;">'
+                f'<b style="color:#276749;">▲ {alert["ticker"]} breaking DAY HIGH</b> — '
+                f'at ${alert["price"]:.2f} (high: ${alert["level"]:.2f}) | '
+                f'Day low: ${alert["day_low"]:.2f} | Prev close: ${alert["prev_close"]:.2f}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f'<div style="background:#fed7d7;border-radius:8px;padding:10px 14px;margin-bottom:6px;">'
+                f'<b style="color:#9b2c2c;">▼ {alert["ticker"]} breaking DAY LOW</b> — '
+                f'at ${alert["price"]:.2f} (low: ${alert["level"]:.2f}) | '
+                f'Day high: ${alert["day_high"]:.2f} | Prev close: ${alert["prev_close"]:.2f}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
 # --- Index Bar ---
 st.subheader("Market Indices")
 idx_cols = st.columns(3)
