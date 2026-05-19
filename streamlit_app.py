@@ -401,6 +401,36 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
+# --- Breadth vs SPY Logic ---
+spy_data_breadth = data.get("SPY")
+if spy_data_breadth:
+    spy_up = spy_data_breadth["pct_change"] > 0.05
+    spy_down = spy_data_breadth["pct_change"] < -0.05
+
+    if bear_pct >= 60 and spy_up:
+        breadth_msg = f"⚠️ SPY is green (+{spy_data_breadth['pct_change']:.2f}%) but {bear_pct}% of stocks are red — rally is NARROW, driven only by mega-caps. Breadth is weak, this is not a healthy move. Be cautious chasing longs."
+        breadth_color = "#c05621"
+    elif bull_pct >= 60 and spy_down:
+        breadth_msg = f"⚠️ SPY is red ({spy_data_breadth['pct_change']:.2f}%) but {bull_pct}% of stocks are green — mega-caps dragging the index. Broad market is healthier than SPY shows. Look for opportunities in smaller names."
+        breadth_color = "#c05621"
+    elif bull_pct >= 60 and spy_up:
+        breadth_msg = f"✅ Healthy rally — {bull_pct}% stocks green confirming SPY +{spy_data_breadth['pct_change']:.2f}%. Broad participation, strong move."
+        breadth_color = "#276749"
+    elif bear_pct >= 60 and spy_down:
+        breadth_msg = f"✅ Broad selloff confirmed — {bear_pct}% stocks red matching SPY {spy_data_breadth['pct_change']:.2f}%. Weakness is real, not just mega-cap driven."
+        breadth_color = "#9b2c2c"
+    else:
+        breadth_msg = None
+        breadth_color = None
+
+    if breadth_msg:
+        st.markdown(f"""
+        <div style="background:white;border-left:4px solid {breadth_color};border-radius:8px;padding:12px 16px;margin-bottom:16px;box-shadow:0 2px 6px rgba(0,0,0,0.05);">
+            <div style="font-weight:700;color:#2d3748;margin-bottom:4px;">📊 Market Breadth vs SPY</div>
+            <div style="color:#4a5568;font-size:0.88rem;line-height:1.6;">{breadth_msg}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
 # --- Index Bar ---
 st.subheader("Market Indices")
 idx_cols = st.columns(3)
