@@ -415,6 +415,67 @@ for i, sym in enumerate(INDICES):
                 delta=f"{info['change']:+.2f} ({info['pct_change']:+.2f}%)",
             )
 
+# --- SPY Weight Analysis ---
+spy_info = data.get("SPY")
+SPY_TOP_WEIGHTS = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "BRK-B", "LLY", "JPM", "AVGO"]
+
+if spy_info:
+    top_weight_data = [data[t] for t in SPY_TOP_WEIGHTS if t in data]
+    up_stocks = sorted([s for s in top_weight_data if s["pct_change"] > 0.1], key=lambda x: x["pct_change"], reverse=True)
+    down_stocks = sorted([s for s in top_weight_data if s["pct_change"] < -0.1], key=lambda x: x["pct_change"])
+    flat_stocks = [s for s in top_weight_data if -0.1 <= s["pct_change"] <= 0.1]
+
+    total_top = len(top_weight_data)
+    up_count = len(up_stocks)
+    down_count = len(down_stocks)
+
+    spy_dir = "up" if spy_info["pct_change"] > 0.05 else "down" if spy_info["pct_change"] < -0.05 else "flat"
+
+    # Generate SPY summary
+    if spy_dir == "down" and down_count >= 7:
+        draggers = ", ".join([f"{s['ticker']} {s['pct_change']:+.1f}%" for s in down_stocks[:4]])
+        spy_summary = f"📉 SPY {spy_info['pct_change']:+.2f}% — Top weights dragging hard: {draggers} pulling index lower. {down_count}/{total_top} leaders red."
+        summary_color = "#9b2c2c"
+    elif spy_dir == "up" and up_count >= 7:
+        lifters = ", ".join([f"{s['ticker']} {s['pct_change']:+.1f}%" for s in up_stocks[:4]])
+        spy_summary = f"📈 SPY {spy_info['pct_change']:+.2f}% — Top weights lifting: {lifters} driving rally. {up_count}/{total_top} leaders green."
+        summary_color = "#276749"
+    elif spy_dir == "down" and up_count >= 3 and down_count >= 3:
+        draggers = ", ".join([f"{s['ticker']} {s['pct_change']:+.1f}%" for s in down_stocks[:3]])
+        supporters = ", ".join([f"{s['ticker']} {s['pct_change']:+.1f}%" for s in up_stocks[:3]])
+        spy_summary = f"📉 SPY {spy_info['pct_change']:+.2f}% — Mixed signals from top weights. Dragging: {draggers}. But {supporters} not supporting downside — leaders divided, no clear consensus."
+        summary_color = "#c05621"
+    elif spy_dir == "up" and down_count >= 3 and up_count >= 3:
+        lifters = ", ".join([f"{s['ticker']} {s['pct_change']:+.1f}%" for s in up_stocks[:3]])
+        laggards = ", ".join([f"{s['ticker']} {s['pct_change']:+.1f}%" for s in down_stocks[:3]])
+        spy_summary = f"📈 SPY {spy_info['pct_change']:+.2f}% — Fragile rally. Pushing up: {lifters}. But {laggards} not confirming — move lacks full conviction from leaders."
+        summary_color = "#b7791f"
+    elif spy_dir == "flat":
+        if up_count >= 3 and down_count >= 3:
+            bulls_str = ", ".join([f"{s['ticker']} {s['pct_change']:+.1f}%" for s in up_stocks[:3]])
+            bears_str = ", ".join([f"{s['ticker']} {s['pct_change']:+.1f}%" for s in down_stocks[:3]])
+            spy_summary = f"⚖️ SPY flat ({spy_info['pct_change']:+.2f}%) — Top weights canceling out. Bulls: {bulls_str}. Bears: {bears_str}. No direction from leaders."
+            summary_color = "#718096"
+        else:
+            spy_summary = f"⚖️ SPY flat ({spy_info['pct_change']:+.2f}%) — Top weights mostly quiet, low conviction day."
+            summary_color = "#718096"
+    elif spy_dir == "down":
+        draggers = ", ".join([f"{s['ticker']} {s['pct_change']:+.1f}%" for s in down_stocks[:4]]) if down_stocks else "few movers"
+        spy_summary = f"📉 SPY {spy_info['pct_change']:+.2f}% — Weakness from: {draggers}."
+        summary_color = "#9b2c2c"
+    else:
+        lifters = ", ".join([f"{s['ticker']} {s['pct_change']:+.1f}%" for s in up_stocks[:4]]) if up_stocks else "few movers"
+        spy_summary = f"📈 SPY {spy_info['pct_change']:+.2f}% — Strength from: {lifters}."
+        summary_color = "#276749"
+
+    st.markdown(f"""
+    <div style="background:white;border-left:4px solid {summary_color};border-radius:8px;padding:14px 18px;margin-top:12px;margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,0.05);">
+        <div style="font-weight:700;color:#2d3748;margin-bottom:6px;">🔍 SPY Weight Analysis</div>
+        <div style="color:#4a5568;font-size:0.9rem;line-height:1.6;">{spy_summary}</div>
+        <div style="margin-top:8px;font-size:0.75rem;color:#a0aec0;">Based on top 10 SPY holdings: {', '.join(SPY_TOP_WEIGHTS)}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
 # --- Macro Indicators: VIX, 10Y Yield, XLF ---
 st.subheader("Macro Indicators")
 macro_cols = st.columns(3)
