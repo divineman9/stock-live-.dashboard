@@ -313,8 +313,6 @@ st.markdown("""
 # --- Main App ---
 st.markdown("""
 <div style="text-align:center;margin-bottom:10px;">
-  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2b/Jupiter_and_its_shrunken_Great_Red_Spot.jpg/600px-Jupiter_and_its_shrunken_Great_Red_Spot.jpg" 
-       style="width:80px;height:80px;border-radius:50%;object-fit:cover;margin-bottom:8px;" />
   <h1 style="margin:0;">GGP (God Given Patterns)</h1>
 </div>
 """, unsafe_allow_html=True)
@@ -370,7 +368,7 @@ st.markdown(f"""
   </div>
   <div style="display:flex;align-items:center;justify-content:center;gap:15px;">
     <div style="text-align:center;">
-      <div style="font-size:2.5rem;">🐂</div>
+      <img src="https://cdn-icons-png.flaticon.com/512/3468/3468377.png" style="width:60px;height:60px;" />
       <div style="font-size:1.5rem;font-weight:800;color:#276749;">{bull_pct}%</div>
       <div style="font-size:0.8rem;color:#718096;">{bulls} stocks up</div>
     </div>
@@ -380,7 +378,7 @@ st.markdown(f"""
       </div>
     </div>
     <div style="text-align:center;">
-      <div style="font-size:2.5rem;">🐻</div>
+      <img src="https://cdn-icons-png.flaticon.com/512/3468/3468295.png" style="width:60px;height:60px;" />
       <div style="font-size:1.5rem;font-weight:800;color:#9b2c2c;">{bear_pct}%</div>
       <div style="font-size:0.8rem;color:#718096;">{bears} stocks down</div>
     </div>
