@@ -476,6 +476,135 @@ if spy_info:
     </div>
     """, unsafe_allow_html=True)
 
+# --- SPY OI Analysis ---
+@st.cache_data(ttl=300)
+def fetch_spy_options():
+    """Fetch SPY options chain from Yahoo for nearest expiry."""
+    try:
+        # Get available expiry dates
+        url = "https://query1.finance.yahoo.com/v7/finance/options/SPY"
+        resp = requests.get(url, headers=YAHOO_HEADERS, timeout=10)
+        if resp.status_code != 200:
+            return None
+        data_opt = resp.json()["optionChain"]["result"][0]
+        expiry_ts = data_opt["expirationDates"][0]  # nearest expiry
+
+        # Get options chain for that expiry
+        url2 = f"https://query1.finance.yahoo.com/v7/finance/options/SPY?date={expiry_ts}"
+        resp2 = requests.get(url2, headers=YAHOO_HEADERS, timeout=10)
+        if resp2.status_code != 200:
+            return None
+        result = resp2.json()["optionChain"]["result"][0]
+
+        calls = result["options"][0]["calls"]
+        puts = result["options"][0]["puts"]
+        current_price = result["quote"]["regularMarketPrice"]
+
+        # Parse expiry date
+        from datetime import datetime as dt
+        expiry_date = dt.fromtimestamp(expiry_ts).strftime("%b %d")
+
+        # Calculate total call OI and put OI
+        total_call_oi = sum(c.get("openInterest", 0) for c in calls)
+        total_put_oi = sum(p.get("openInterest", 0) for p in puts)
+        pc_ratio = round(total_put_oi / total_call_oi, 2) if total_call_oi > 0 else 0
+
+        # Find highest OI call strike (resistance) and put strike (support)
+        # Only look at strikes near current price (+/- 5%)
+        near_calls = [c for c in calls if abs(c["strike"] - current_price) / current_price < 0.05]
+        near_puts = [p for p in puts if abs(p["strike"] - current_price) / current_price < 0.05]
+
+        top_call = max(near_calls, key=lambda x: x.get("openInterest", 0)) if near_calls else None
+        top_put = max(near_puts, key=lambda x: x.get("openInterest", 0)) if near_puts else None
+
+        # Find second highest for "next target" levels
+        if top_call and near_calls:
+            above_calls = sorted([c for c in near_calls if c["strike"] > top_call["strike"]], key=lambda x: x.get("openInterest", 0), reverse=True)
+            next_resistance = above_calls[0]["strike"] if above_calls else top_call["strike"] + 5
+        else:
+            next_resistance = current_price + 10
+
+        if top_put and near_puts:
+            below_puts = sorted([p for p in near_puts if p["strike"] < top_put["strike"]], key=lambda x: x.get("openInterest", 0), reverse=True)
+            next_support = below_puts[0]["strike"] if below_puts else top_put["strike"] - 5
+        else:
+            next_support = current_price - 10
+
+        # Max Pain calculation (strike where total $ value of options expiring worthless is max)
+        strikes = sorted(set([c["strike"] for c in calls] + [p["strike"] for p in puts]))
+        max_pain_strike = current_price
+        max_pain_value = 0
+        for strike in strikes:
+            call_pain = sum(max(0, strike - c["strike"]) * c.get("openInterest", 0) for c in calls)
+            put_pain = sum(max(0, p["strike"] - strike) * p.get("openInterest", 0) for p in puts)
+            total_pain = call_pain + put_pain
+            if total_pain > max_pain_value:
+                max_pain_value = total_pain
+                max_pain_strike = strike
+
+        return {
+            "current_price": current_price,
+            "expiry": expiry_date,
+            "pc_ratio": pc_ratio,
+            "total_call_oi": total_call_oi,
+            "total_put_oi": total_put_oi,
+            "resistance": top_call["strike"] if top_call else None,
+            "resistance_oi": top_call.get("openInterest", 0) if top_call else 0,
+            "support": top_put["strike"] if top_put else None,
+            "support_oi": top_put.get("openInterest", 0) if top_put else 0,
+            "max_pain": max_pain_strike,
+            "next_resistance": next_resistance,
+            "next_support": next_support,
+        }
+    except Exception as e:
+        return None
+
+oi_data = fetch_spy_options()
+if oi_data:
+    price = oi_data["current_price"]
+    resistance = oi_data["resistance"]
+    support = oi_data["support"]
+    max_pain = oi_data["max_pain"]
+    pc_ratio = oi_data["pc_ratio"]
+    next_res = oi_data["next_resistance"]
+    next_sup = oi_data["next_support"]
+
+    # Sentiment from P/C ratio
+    if pc_ratio > 1.2:
+        sentiment = "🔴 Bearish (heavy put hedging)"
+    elif pc_ratio > 0.9:
+        sentiment = "🟡 Cautious (slightly more puts)"
+    elif pc_ratio > 0.7:
+        sentiment = "🟢 Neutral-Bullish"
+    else:
+        sentiment = "🟢 Bullish (call heavy)"
+
+    # Direction based on max pain
+    if price < max_pain - 1:
+        mp_direction = f"Price below Max Pain — likely to drift UP toward ${max_pain:.0f} by expiry."
+    elif price > max_pain + 1:
+        mp_direction = f"Price above Max Pain — likely to drift DOWN toward ${max_pain:.0f} by expiry."
+    else:
+        mp_direction = f"Price near Max Pain — expect sideways chop around ${max_pain:.0f}."
+
+    # Breakout levels
+    breakout_up = f"If SPY breaks above ${resistance:.0f} (call wall, {oi_data['resistance_oi']:,} OI), next target ${next_res:.0f}. Shorts will cover, accelerating move up."
+    breakout_down = f"If SPY breaks below ${support:.0f} (put wall, {oi_data['support_oi']:,} OI), next drop to ${next_sup:.0f}. Put sellers forced to sell shares, accelerating move down."
+
+    st.markdown(f"""
+    <div style="background:white;border-left:4px solid #6b46c1;border-radius:8px;padding:14px 18px;margin-top:12px;margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,0.05);">
+        <div style="font-weight:700;color:#2d3748;margin-bottom:8px;">🎯 SPY Options OI Analysis <span style="font-weight:400;font-size:0.8rem;color:#a0aec0;">(Expiry: {oi_data['expiry']})</span></div>
+        <div style="color:#4a5568;font-size:0.88rem;line-height:1.7;">
+            <b>SPY:</b> ${price:.2f} | <b>Put/Call Ratio:</b> {pc_ratio} {sentiment}<br/>
+            <b>Max Pain:</b> ${max_pain:.0f} — {mp_direction}<br/>
+            <b>Resistance:</b> ${resistance:.0f} ({oi_data['resistance_oi']:,} call OI) | <b>Support:</b> ${support:.0f} ({oi_data['support_oi']:,} put OI)<br/><br/>
+            📍 <b>Breakout Levels:</b><br/>
+            <span style="color:#276749;">▲ {breakout_up}</span><br/>
+            <span style="color:#9b2c2c;">▼ {breakout_down}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 # --- Macro Indicators: VIX, 10Y Yield, XLF ---
 st.subheader("Macro Indicators")
 macro_cols = st.columns(3)
