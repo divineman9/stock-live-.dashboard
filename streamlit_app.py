@@ -22,6 +22,11 @@ STOCKS = {
     "Energy": ["XOM", "CVX", "COP", "SLB", "EOG"],
     "Consumer": ["WMT", "KO", "PEP", "MCD", "NKE", "SBUX", "HD"],
     "Industrial": ["CAT", "BA", "HON", "UPS", "GE"],
+    "Oil": ["XOM", "CVX", "COP", "OXY", "EOG", "MPC", "PSX"],
+    "Gold": ["NEM", "GOLD", "AEM", "FNV", "WPM", "GFI", "KGC"],
+    "Copper": ["FCX", "SCCO", "TECK", "HBM", "COPX", "ERO", "ANTO"],
+    "Space": ["LMT", "NOC", "BA", "RTX", "RKLB", "LUNR", "RDW"],
+    "Fertilizers": ["NTR", "MOS", "CF", "FMC", "ICL", "IPI", "RKDA"],
 }
 INDICES = ["SPY", "QQQ", "DIA"]
 # Macro indicators: 10Y Treasury Yield, VIX (fear index), XLF (financials ETF)
@@ -384,21 +389,25 @@ sorted_sectors = sorted(sector_summary.items(), key=lambda x: x[1], reverse=True
 if "selected_sector" not in st.session_state:
     st.session_state.selected_sector = "All"
 
-sector_cols = st.columns(len(sorted_sectors))
-for i, (sector, pct) in enumerate(sorted_sectors):
-    with sector_cols[i]:
-        color = "#276749" if pct >= 1 else "#38a169" if pct >= 0.25 else "#a0aec0" if pct > -0.25 else "#e53e3e" if pct > -1 else "#9b2c2c"
-        sign = "+" if pct >= 0 else ""
-        is_selected = st.session_state.selected_sector == sector
-        border = "3px solid #1a365d" if is_selected else "none"
-        st.markdown(
-            f'<div style="background:{color};color:white;padding:10px;border-radius:8px;text-align:center;font-weight:600;font-size:0.8rem;border:{border};">'
-            f'{sector}<br/>{sign}{pct:.2f}%</div>',
-            unsafe_allow_html=True,
-        )
-        if st.button(f"View", key=f"btn_{sector}", use_container_width=True):
-            st.session_state.selected_sector = sector
-            st.rerun()
+# Display sectors in rows of 6
+cols_per_row = 6
+for row_start in range(0, len(sorted_sectors), cols_per_row):
+    row_sectors = sorted_sectors[row_start:row_start + cols_per_row]
+    sector_cols = st.columns(cols_per_row)
+    for i, (sector, pct) in enumerate(row_sectors):
+        with sector_cols[i]:
+            color = "#276749" if pct >= 1 else "#38a169" if pct >= 0.25 else "#a0aec0" if pct > -0.25 else "#e53e3e" if pct > -1 else "#9b2c2c"
+            sign = "+" if pct >= 0 else ""
+            is_selected = st.session_state.selected_sector == sector
+            border = "3px solid #1a365d" if is_selected else "none"
+            st.markdown(
+                f'<div style="background:{color};color:white;padding:10px;border-radius:8px;text-align:center;font-weight:600;font-size:0.8rem;border:{border};">'
+                f'{sector}<br/>{sign}{pct:.2f}%</div>',
+                unsafe_allow_html=True,
+            )
+            if st.button(f"View", key=f"btn_{sector}", use_container_width=True):
+                st.session_state.selected_sector = sector
+                st.rerun()
 
 # Back to All button
 st.markdown("")
