@@ -309,16 +309,16 @@ st.markdown("""
     }
     /* Dropdown styling */
     div[data-baseweb="select"] > div {
-        background-color: #1a365d !important;
-        color: white !important;
+        background-color: #ebf4ff !important;
+        color: #2b6cb0 !important;
         border-radius: 8px !important;
-        border: none !important;
+        border: 2px solid #90cdf4 !important;
     }
     div[data-baseweb="select"] > div > div {
-        color: white !important;
+        color: #2b6cb0 !important;
     }
     div[data-baseweb="select"] svg {
-        fill: white !important;
+        fill: #2b6cb0 !important;
     }
 </style>
 """, unsafe_allow_html=True)
