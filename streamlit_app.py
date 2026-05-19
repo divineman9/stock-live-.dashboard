@@ -331,6 +331,58 @@ phase_labels = {
 }
 st.caption(f"{phase_labels.get(phase, phase)} | Last updated: {datetime.now(ET).strftime('%I:%M:%S %p ET')}")
 
+# --- Bulls vs Bears ---
+stocks_all = {k: v for k, v in data.items() if k not in INDICES and k not in MACRO_TICKERS}
+total_stocks = len(stocks_all)
+bulls = sum(1 for s in stocks_all.values() if s["pct_change"] > 0)
+bears = sum(1 for s in stocks_all.values() if s["pct_change"] < 0)
+flat = total_stocks - bulls - bears
+bull_pct = round((bulls / total_stocks) * 100) if total_stocks > 0 else 50
+bear_pct = round((bears / total_stocks) * 100) if total_stocks > 0 else 50
+
+# Determine who's winning
+if bull_pct >= 65:
+    verdict = "Bulls dominating 💪"
+    verdict_color = "#276749"
+elif bull_pct >= 55:
+    verdict = "Bulls leading"
+    verdict_color = "#38a169"
+elif bear_pct >= 65:
+    verdict = "Bears dominating 🩸"
+    verdict_color = "#9b2c2c"
+elif bear_pct >= 55:
+    verdict = "Bears leading"
+    verdict_color = "#e53e3e"
+else:
+    verdict = "Tug of war ⚔️"
+    verdict_color = "#718096"
+
+st.markdown(f"""
+<div style="background:white;border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+  <div style="text-align:center;margin-bottom:10px;">
+    <span style="font-size:1.3rem;font-weight:700;color:{verdict_color};">{verdict}</span>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:15px;">
+    <div style="text-align:center;">
+      <div style="font-size:2.5rem;">🐂</div>
+      <div style="font-size:1.5rem;font-weight:800;color:#276749;">{bull_pct}%</div>
+      <div style="font-size:0.8rem;color:#718096;">{bulls} stocks up</div>
+    </div>
+    <div style="flex:1;max-width:300px;">
+      <div style="background:#fed7d7;border-radius:20px;height:24px;overflow:hidden;position:relative;">
+        <div style="background:#c6f6d5;height:100%;width:{bull_pct}%;border-radius:20px;transition:width 0.5s;"></div>
+      </div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-size:2.5rem;">🐻</div>
+      <div style="font-size:1.5rem;font-weight:800;color:#9b2c2c;">{bear_pct}%</div>
+      <div style="font-size:0.8rem;color:#718096;">{bears} stocks down</div>
+    </div>
+  </div>
+  {"<div style='text-align:center;margin-top:8px;font-size:0.75rem;color:#a0aec0;'>" + str(flat) + " stocks flat</div>" if flat > 0 else ""}
+</div>
+""", unsafe_allow_html=True)
+
 # --- Index Bar ---
 st.subheader("Market Indices")
 idx_cols = st.columns(3)
