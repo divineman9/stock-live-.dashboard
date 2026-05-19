@@ -62,6 +62,7 @@ def get_refresh_interval(phase):
     return {"premarket": 25, "market": 20, "transition": 10, "afterhours": 60, "closed": 120}.get(phase, 60)
 
 
+
 # --- Data Fetching ---
 
 def fetch_chart_single(ticker):
@@ -194,26 +195,52 @@ def fetch_market_data(tickers):
 # --- Background Worker ---
 
 def fetch_quotes_background():
-    """Fetch all quotes based on market phase and update cache."""
+    """
+    Hybrid approach:
+    1. Always fetch spark first (fast, ~0.7s) to get data showing immediately
+    2. During premarket, follow up with chart endpoint for accurate premarket prices
+    """
     phase = get_market_phase()
     try:
-        if phase == "premarket":
-            # Use chart endpoint for real premarket prices
-            data = fetch_premarket_data(ALL_TICKERS)
-        elif phase == "transition":
-            # Freeze — don't fetch, keep last premarket data
-            return
-        else:
-            # Market open / after hours / closed — use fast spark endpoint
-            data = fetch_market_data(ALL_TICKERS)
-
-        if data:
+        # Step 1: Fast spark fetch — gets data into cache ASAP
+        spark_data = fetch_market_data(ALL_TICKERS)
+        if spark_data:
             with cache_lock:
-                cache["data"] = data
-                cache["phase"] = phase
-                cache["last_updated"] = datetime.now(ET).strftime("%I:%M:%S %p ET")
-                cache["ready"] = True
-            print(f"[Cache] {len(data)} tickers | Phase: {phase} | {cache['last_updated']}")
+                # Only overwrite if we don't already have better premarket data
+                if not cache["ready"]:
+                    cache["data"] = spark_data
+                    cache["phase"] = phase
+                    cache["last_updated"] = datetime.now(ET).strftime("%I:%M:%S %p ET")
+                    cache["ready"] = True
+                    print(f"[Cache] Quick load: {len(spark_data)} tickers | {cache['last_updated']}")
+                elif phase != "premarket":
+                    cache["data"] = spark_data
+                    cache["phase"] = phase
+                    cache["last_updated"] = datetime.now(ET).strftime("%I:%M:%S %p ET")
+
+        # Step 2: During premarket, fetch accurate premarket prices
+        if phase == "premarket":
+            premarket_data = fetch_premarket_data(ALL_TICKERS)
+            if premarket_data:
+                with cache_lock:
+                    cache["data"] = premarket_data
+                    cache["phase"] = phase
+                    cache["last_updated"] = datetime.now(ET).strftime("%I:%M:%S %p ET")
+                    cache["ready"] = True
+                print(f"[Cache] Premarket update: {len(premarket_data)} tickers | {cache['last_updated']}")
+        elif phase == "transition":
+            # Keep last data, don't fetch
+            pass
+        else:
+            # Market/afterhours/closed — spark data is already accurate
+            if spark_data:
+                with cache_lock:
+                    cache["data"] = spark_data
+                    cache["phase"] = phase
+                    cache["last_updated"] = datetime.now(ET).strftime("%I:%M:%S %p ET")
+                    cache["ready"] = True
+                print(f"[Cache] {len(spark_data)} tickers | Phase: {phase} | {cache['last_updated']}")
+
     except Exception as e:
         print(f"[Cache] Error: {e}")
 
