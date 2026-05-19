@@ -97,8 +97,8 @@ def fetch_chart_single(ticker):
 def fetch_all_data():
     phase = get_market_phase()
 
-    if phase == "premarket":
-        # Use chart endpoint for accurate premarket prices
+    if phase in ("premarket", "market"):
+        # Use chart endpoint for real-time prices (premarket + live market)
         with ThreadPoolExecutor(max_workers=15) as ex:
             results = list(ex.map(fetch_chart_single, ALL_TICKERS))
         data = {}
@@ -111,9 +111,10 @@ def fetch_all_data():
                 else:
                     r["sector"] = TICKER_SECTORS.get(sym, ["Unknown"])[0]
                     r["sectors"] = TICKER_SECTORS.get(sym, ["Index"])
+                r["is_premarket"] = (phase == "premarket")
                 data[sym] = r
     else:
-        # Use spark endpoint (fast)
+        # After hours / closed / transition — use spark endpoint (fast, shows last close)
         batch_size = 20
         batches = [ALL_TICKERS[i:i+batch_size] for i in range(0, len(ALL_TICKERS), batch_size)]
         combined = {}
