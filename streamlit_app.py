@@ -92,64 +92,64 @@ def fetch_chart_single(ticker):
         return None
 
 
-@st.cache_data(ttl=20)
+@st.cache_data(ttl=25)
 def fetch_all_data():
+    """
+    Hybrid approach that works on Streamlit Cloud:
+    - Spark endpoint for all regular tickers (batch, fast, ~1s)
+    - Chart endpoint only for ^TNX and ^VIX (need special handling)
+    """
     phase = get_market_phase()
+    data = {}
 
-    if phase in ("premarket", "market"):
-        # Use chart endpoint for real-time prices (premarket + live market)
-        with ThreadPoolExecutor(max_workers=15) as ex:
-            results = list(ex.map(fetch_chart_single, ALL_TICKERS))
-        data = {}
-        for r in results:
-            if r:
-                sym = r["ticker"]
-                if sym in INDICES or sym in MACRO_TICKERS:
-                    r["sector"] = "Index"
-                    r["sectors"] = ["Index"]
-                else:
-                    r["sector"] = TICKER_SECTORS.get(sym, ["Unknown"])[0]
-                    r["sectors"] = TICKER_SECTORS.get(sym, ["Index"])
-                r["is_premarket"] = (phase == "premarket")
-                data[sym] = r
-    else:
-        # After hours / closed / transition — use spark endpoint (fast, shows last close)
-        batch_size = 20
-        batches = [ALL_TICKERS[i:i+batch_size] for i in range(0, len(ALL_TICKERS), batch_size)]
-        combined = {}
-        with ThreadPoolExecutor(max_workers=3) as ex:
+    # Step 1: Fetch all regular tickers via spark (fast batch)
+    regular_tickers = [t for t in ALL_TICKERS if not t.startswith("^")]
+    batch_size = 20
+    batches = [regular_tickers[i:i+batch_size] for i in range(0, len(regular_tickers), batch_size)]
+
+    try:
+        with ThreadPoolExecutor(max_workers=4) as ex:
             results = list(ex.map(fetch_spark_batch, batches))
         for result in results:
-            combined.update(result)
+            for sym, info in result.items():
+                if sym not in ALL_TICKERS:
+                    continue
+                closes = info.get("close", [])
+                prev_close = info.get("chartPreviousClose")
+                if not closes or prev_close is None:
+                    continue
+                price = closes[-1]
+                if price is None or prev_close == 0:
+                    continue
+                change = price - prev_close
+                pct_change = (change / prev_close) * 100
 
-        data = {}
-        for sym, info in combined.items():
-            if sym not in ALL_TICKERS:
-                continue
-            closes = info.get("close", [])
-            prev_close = info.get("chartPreviousClose")
-            if not closes or prev_close is None:
-                continue
-            price = closes[-1]
-            if price is None or prev_close == 0:
-                continue
-            change = price - prev_close
-            pct_change = (change / prev_close) * 100
+                if sym in INDICES or sym in MACRO_TICKERS:
+                    primary_sector = "Index"
+                    sectors = ["Index"]
+                else:
+                    primary_sector = TICKER_SECTORS.get(sym, ["Unknown"])[0]
+                    sectors = TICKER_SECTORS.get(sym, ["Index"])
 
-            if sym in INDICES or sym in MACRO_TICKERS:
-                primary_sector = "Index"
-                sectors = ["Index"]
-            else:
-                primary_sector = TICKER_SECTORS.get(sym, ["Unknown"])[0]
-                sectors = TICKER_SECTORS.get(sym, ["Index"])
+                data[sym] = {
+                    "ticker": sym, "price": round(float(price), 2),
+                    "prev_close": round(float(prev_close), 2),
+                    "change": round(float(change), 2), "pct_change": round(float(pct_change), 2),
+                    "volume": 0, "sector": primary_sector,
+                    "sectors": sectors, "is_premarket": (phase == "premarket"),
+                }
+    except Exception as e:
+        pass
 
-            data[sym] = {
-                "ticker": sym, "price": round(float(price), 2),
-                "prev_close": round(float(prev_close), 2),
-                "change": round(float(change), 2), "pct_change": round(float(pct_change), 2),
-                "volume": 0, "sector": primary_sector,
-                "sectors": sectors, "is_premarket": False,
-            }
+    # Step 2: Fetch ^TNX and ^VIX via chart endpoint (they need special URL encoding)
+    special_tickers = [t for t in ALL_TICKERS if t.startswith("^")]
+    for ticker in special_tickers:
+        result = fetch_chart_single(ticker)
+        if result:
+            result["sector"] = "Index"
+            result["sectors"] = ["Index"]
+            result["is_premarket"] = (phase == "premarket")
+            data[ticker] = result
 
     return data, phase
 
