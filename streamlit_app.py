@@ -28,6 +28,7 @@ STOCKS = {
     "Fertilizers": ["NTR", "MOS", "CF", "FMC", "ICL", "IPI", "CTVA"],
     "Solar": ["ENPH", "SEDG", "FSLR", "RUN", "NOVA", "ARRY", "CSIQ"],
     "Quantum": ["IONQ", "RGTI", "QBTS", "QUBT", "ARQQ", "QMCO", "QTUM"],
+    "Semis": ["NVDA", "AMD", "AVGO", "INTC", "QCOM", "MU", "MRVL", "TSM", "ASML", "TXN"],
 }
 INDICES = ["SPY", "QQQ", "DIA"]
 # Macro indicators: 10Y Treasury Yield, VIX (fear index), XLF (financials ETF)
@@ -501,8 +502,8 @@ selected_sector = st.session_state.selected_sector
 
 if selected_sector == "All":
     sorted_stocks = sorted(stocks_only.values(), key=lambda x: x["pct_change"], reverse=True)
-    gainers = [s for s in sorted_stocks if s["pct_change"] > 0][:15]
-    losers = sorted([s for s in sorted_stocks if s["pct_change"] < 0], key=lambda x: x["pct_change"])[:15]
+    gainers = [s for s in sorted_stocks if s["pct_change"] > 0][:20]
+    losers = sorted([s for s in sorted_stocks if s["pct_change"] < 0], key=lambda x: x["pct_change"])[:20]
 else:
     sector_tickers = STOCKS[selected_sector]
     sector_data = sorted([data[t] for t in sector_tickers if t in data], key=lambda x: x["pct_change"], reverse=True)
@@ -513,6 +514,16 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("🚀 Top Gainers")
+    sort_gain = st.selectbox("Sort by", ["% Change", "$ Change", "Price", "Ticker"], key="sort_gainers")
+    if sort_gain == "% Change":
+        gainers = sorted(gainers, key=lambda x: x["pct_change"], reverse=True)
+    elif sort_gain == "$ Change":
+        gainers = sorted(gainers, key=lambda x: x["change"], reverse=True)
+    elif sort_gain == "Price":
+        gainers = sorted(gainers, key=lambda x: x["price"], reverse=True)
+    elif sort_gain == "Ticker":
+        gainers = sorted(gainers, key=lambda x: x["ticker"])
+
     if gainers:
         for s in gainers:
             pm = " 🏷️PM" if s.get("is_premarket") else ""
@@ -530,6 +541,16 @@ with col1:
 
 with col2:
     st.subheader("🔻 Top Losers")
+    sort_loss = st.selectbox("Sort by", ["% Change", "$ Change", "Price", "Ticker"], key="sort_losers")
+    if sort_loss == "% Change":
+        losers = sorted(losers, key=lambda x: x["pct_change"])
+    elif sort_loss == "$ Change":
+        losers = sorted(losers, key=lambda x: x["change"])
+    elif sort_loss == "Price":
+        losers = sorted(losers, key=lambda x: x["price"], reverse=True)
+    elif sort_loss == "Ticker":
+        losers = sorted(losers, key=lambda x: x["ticker"])
+
     if losers:
         for s in losers:
             pm = " 🏷️PM" if s.get("is_premarket") else ""
