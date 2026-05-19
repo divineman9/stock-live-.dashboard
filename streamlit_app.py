@@ -268,8 +268,8 @@ insights = generate_insights(data)
 for insight in insights:
     st.markdown(f'<div class="insight-box">{insight}</div>', unsafe_allow_html=True)
 
-# --- Sector Heatmap ---
-st.subheader("Sector Performance")
+# --- Sector Heatmap (clickable) ---
+st.subheader("Sector Performance (click to explore)")
 stocks_only = {k: v for k, v in data.items() if k not in INDICES}
 sector_avg = {}
 for info in stocks_only.values():
@@ -278,24 +278,44 @@ for info in stocks_only.values():
 sector_summary = {s: round(sum(c)/len(c), 2) for s, c in sector_avg.items()}
 sorted_sectors = sorted(sector_summary.items(), key=lambda x: x[1], reverse=True)
 
+# Initialize session state for selected sector
+if "selected_sector" not in st.session_state:
+    st.session_state.selected_sector = "All"
+
 sector_cols = st.columns(len(sorted_sectors))
 for i, (sector, pct) in enumerate(sorted_sectors):
     with sector_cols[i]:
         color = "#276749" if pct >= 1 else "#38a169" if pct >= 0.25 else "#a0aec0" if pct > -0.25 else "#e53e3e" if pct > -1 else "#9b2c2c"
         sign = "+" if pct >= 0 else ""
+        is_selected = st.session_state.selected_sector == sector
+        border = "3px solid #1a365d" if is_selected else "none"
         st.markdown(
-            f'<div style="background:{color};color:white;padding:10px;border-radius:8px;text-align:center;font-weight:600;font-size:0.8rem;">'
+            f'<div style="background:{color};color:white;padding:10px;border-radius:8px;text-align:center;font-weight:600;font-size:0.8rem;border:{border};">'
             f'{sector}<br/>{sign}{pct:.2f}%</div>',
             unsafe_allow_html=True,
         )
+        if st.button(f"View", key=f"btn_{sector}", use_container_width=True):
+            st.session_state.selected_sector = sector
+            st.rerun()
+
+# Back to All button
+st.markdown("")
+col_back, col_label, _ = st.columns([1, 3, 3])
+with col_back:
+    if st.session_state.selected_sector != "All":
+        if st.button("← Back to All"):
+            st.session_state.selected_sector = "All"
+            st.rerun()
+with col_label:
+    if st.session_state.selected_sector != "All":
+        st.subheader(f"📂 {st.session_state.selected_sector} Sector")
 
 st.markdown("---")
 
-# --- Sector Tabs ---
-selected_sector = st.selectbox("Select Sector to Explore", ["All"] + list(STOCKS.keys()))
+# --- Gainers & Losers based on selection ---
+selected_sector = st.session_state.selected_sector
 
 if selected_sector == "All":
-    # Top Gainers & Losers
     sorted_stocks = sorted(stocks_only.values(), key=lambda x: x["pct_change"], reverse=True)
     gainers = [s for s in sorted_stocks if s["pct_change"] > 0][:15]
     losers = sorted([s for s in sorted_stocks if s["pct_change"] < 0], key=lambda x: x["pct_change"])[:15]
