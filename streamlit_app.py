@@ -311,7 +311,13 @@ st.markdown("""
 
 
 # --- Main App ---
-st.markdown("<h1 style='text-align:center;'>♃ GGP (God Given Patterns)</h1>", unsafe_allow_html=True)
+st.markdown("""
+<div style="text-align:center;margin-bottom:10px;">
+  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2b/Jupiter_and_its_shrunken_Great_Red_Spot.jpg/600px-Jupiter_and_its_shrunken_Great_Red_Spot.jpg" 
+       style="width:80px;height:80px;border-radius:50%;object-fit:cover;margin-bottom:8px;" />
+  <h1 style="margin:0;">GGP (God Given Patterns)</h1>
+</div>
+""", unsafe_allow_html=True)
 
 # Fetch data
 with st.spinner("Loading market data..."):
