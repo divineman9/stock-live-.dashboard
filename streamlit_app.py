@@ -24,6 +24,8 @@ STOCKS = {
     "Industrial": ["CAT", "BA", "HON", "UPS", "GE"],
 }
 INDICES = ["SPY", "QQQ", "DIA"]
+# Macro indicators: 10Y Treasury Yield, VIX (fear index), XLF (financials ETF)
+MACRO_TICKERS = ["^TNX", "^VIX", "XLF"]
 TICKER_SECTORS = {}
 for sector, tickers in STOCKS.items():
     for t in tickers:
@@ -31,7 +33,7 @@ for sector, tickers in STOCKS.items():
             TICKER_SECTORS[t] = []
         TICKER_SECTORS[t].append(sector)
 
-ALL_TICKERS = list(set(INDICES + [t for tickers in STOCKS.values() for t in tickers]))
+ALL_TICKERS = list(set(INDICES + MACRO_TICKERS + [t for tickers in STOCKS.values() for t in tickers]))
 ET = pytz.timezone("US/Eastern")
 YAHOO_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
@@ -98,8 +100,12 @@ def fetch_all_data():
         for r in results:
             if r:
                 sym = r["ticker"]
-                r["sector"] = "Index" if sym in INDICES else TICKER_SECTORS.get(sym, ["Unknown"])[0]
-                r["sectors"] = TICKER_SECTORS.get(sym, ["Index"])
+                if sym in INDICES or sym in MACRO_TICKERS:
+                    r["sector"] = "Index"
+                    r["sectors"] = ["Index"]
+                else:
+                    r["sector"] = TICKER_SECTORS.get(sym, ["Unknown"])[0]
+                    r["sectors"] = TICKER_SECTORS.get(sym, ["Index"])
                 data[sym] = r
     else:
         # Use spark endpoint (fast)
@@ -124,13 +130,20 @@ def fetch_all_data():
                 continue
             change = price - prev_close
             pct_change = (change / prev_close) * 100
-            primary_sector = "Index" if sym in INDICES else TICKER_SECTORS.get(sym, ["Unknown"])[0]
+
+            if sym in INDICES or sym in MACRO_TICKERS:
+                primary_sector = "Index"
+                sectors = ["Index"]
+            else:
+                primary_sector = TICKER_SECTORS.get(sym, ["Unknown"])[0]
+                sectors = TICKER_SECTORS.get(sym, ["Index"])
+
             data[sym] = {
                 "ticker": sym, "price": round(float(price), 2),
                 "prev_close": round(float(prev_close), 2),
                 "change": round(float(change), 2), "pct_change": round(float(pct_change), 2),
                 "volume": 0, "sector": primary_sector,
-                "sectors": TICKER_SECTORS.get(sym, ["Index"]), "is_premarket": False,
+                "sectors": sectors, "is_premarket": False,
             }
 
     return data, phase
@@ -141,11 +154,59 @@ def generate_insights(data):
     insights = []
     spy = data.get("SPY")
     qqq = data.get("QQQ")
+    vix = data.get("^VIX")
+    tnx = data.get("^TNX")
+    xlf = data.get("XLF")
     phase = get_market_phase()
 
     if phase == "premarket":
         insights.append("🌅 Showing pre-market data (updates until 9:20 AM ET)")
 
+    # --- VIX insights (fear gauge) ---
+    if vix:
+        if vix["pct_change"] > 10:
+            insights.append(f"🚨 VIX spiking +{vix['pct_change']:.1f}% — fear rising sharply, expect volatility")
+        elif vix["pct_change"] > 5:
+            insights.append(f"⚠️ VIX up +{vix['pct_change']:.1f}% — market anxiety increasing")
+        elif vix["pct_change"] < -5:
+            insights.append(f"😌 VIX down {vix['pct_change']:.1f}% — fear fading, risk-on sentiment")
+        # VIX level context
+        if vix["price"] > 30:
+            insights.append(f"🔴 VIX at {vix['price']:.1f} — extreme fear territory")
+        elif vix["price"] > 20:
+            insights.append(f"🟡 VIX at {vix['price']:.1f} — elevated caution")
+
+    # --- Treasury 10Y insights ---
+    if tnx:
+        yield_val = tnx["price"]  # TNX is yield * 10 on Yahoo (e.g. 45.2 = 4.52%)
+        # Yahoo reports TNX as actual yield value (e.g. 4.52)
+        if tnx["pct_change"] > 2:
+            insights.append(f"📈 10Y Treasury yield rising +{tnx['pct_change']:.1f}% (at {yield_val:.2f}%) — pressure on growth/tech stocks")
+        elif tnx["pct_change"] < -2:
+            insights.append(f"📉 10Y Treasury yield falling {tnx['pct_change']:.1f}% (at {yield_val:.2f}%) — tailwind for growth stocks")
+
+    # --- Connect VIX + SPY ---
+    if vix and spy:
+        if vix["pct_change"] > 5 and spy["pct_change"] < -0.5:
+            insights.append(f"🔗 VIX spike + SPY selloff — classic risk-off move")
+        elif vix["pct_change"] < -3 and spy["pct_change"] > 0.5:
+            insights.append(f"🔗 VIX dropping + SPY rallying — strong risk-on signal")
+
+    # --- Connect Treasury + Tech ---
+    if tnx and qqq:
+        if tnx["pct_change"] > 2 and qqq["pct_change"] < -0.5:
+            insights.append(f"🔗 Rising yields dragging tech — QQQ {qqq['pct_change']:.1f}% as 10Y climbs")
+        elif tnx["pct_change"] < -2 and qqq["pct_change"] > 0.5:
+            insights.append(f"🔗 Falling yields boosting tech — QQQ +{qqq['pct_change']:.1f}% as 10Y drops")
+
+    # --- Connect XLF + Treasury ---
+    if xlf and tnx:
+        if tnx["pct_change"] > 1.5 and xlf["pct_change"] > 0.5:
+            insights.append(f"🏦 Banks benefiting from rising yields — XLF +{xlf['pct_change']:.1f}%")
+        elif tnx["pct_change"] < -1.5 and xlf["pct_change"] < -0.5:
+            insights.append(f"🏦 Banks pressured by falling yields — XLF {xlf['pct_change']:.1f}%")
+
+    # --- Sector analysis ---
     sector_changes = {}
     sector_stocks = {}
     for ticker, info in data.items():
@@ -262,6 +323,47 @@ for i, sym in enumerate(INDICES):
                 delta=f"{info['change']:+.2f} ({info['pct_change']:+.2f}%)",
             )
 
+# --- Macro Indicators: VIX, 10Y Yield, XLF ---
+st.subheader("Macro Indicators")
+macro_cols = st.columns(3)
+
+vix_data = data.get("^VIX")
+tnx_data = data.get("^TNX")
+xlf_data = data.get("XLF")
+
+with macro_cols[0]:
+    if vix_data:
+        vix_color = "🔴" if vix_data["price"] > 25 else "🟡" if vix_data["price"] > 18 else "🟢"
+        st.metric(
+            label=f"{vix_color} VIX (Fear Index)",
+            value=f"{vix_data['price']:.2f}",
+            delta=f"{vix_data['change']:+.2f} ({vix_data['pct_change']:+.2f}%)",
+            delta_color="inverse",
+        )
+    else:
+        st.metric(label="VIX", value="--")
+
+with macro_cols[1]:
+    if tnx_data:
+        st.metric(
+            label="📊 10Y Treasury Yield",
+            value=f"{tnx_data['price']:.2f}%",
+            delta=f"{tnx_data['change']:+.2f} ({tnx_data['pct_change']:+.2f}%)",
+            delta_color="off",
+        )
+    else:
+        st.metric(label="10Y Yield", value="--")
+
+with macro_cols[2]:
+    if xlf_data:
+        st.metric(
+            label="🏦 XLF (Financials ETF)",
+            value=f"${xlf_data['price']:.2f}",
+            delta=f"{xlf_data['change']:+.2f} ({xlf_data['pct_change']:+.2f}%)",
+        )
+    else:
+        st.metric(label="XLF", value="--")
+
 # --- Insights ---
 st.subheader("🧠 Market Insights")
 insights = generate_insights(data)
@@ -270,7 +372,7 @@ for insight in insights:
 
 # --- Sector Heatmap (clickable) ---
 st.subheader("Sector Performance (click to explore)")
-stocks_only = {k: v for k, v in data.items() if k not in INDICES}
+stocks_only = {k: v for k, v in data.items() if k not in INDICES and k not in MACRO_TICKERS}
 sector_avg = {}
 for info in stocks_only.values():
     for sec in info.get("sectors", []):
