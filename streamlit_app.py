@@ -26,6 +26,8 @@ STOCKS = {
     "Copper": ["FCX", "SCCO", "TECK", "HBM", "COPX", "ERO", "IVPAF"],
     "Space": ["LMT", "NOC", "BA", "RTX", "RKLB", "LUNR", "RDW"],
     "Fertilizers": ["NTR", "MOS", "CF", "FMC", "ICL", "IPI", "CTVA"],
+    "Solar": ["ENPH", "SEDG", "FSLR", "RUN", "NOVA", "ARRY", "CSIQ"],
+    "Quantum": ["IONQ", "RGTI", "QBTS", "QUBT", "ARQQ", "QMCO", "QTUM"],
 }
 INDICES = ["SPY", "QQQ", "DIA"]
 # Macro indicators: 10Y Treasury Yield, VIX (fear index), XLF (financials ETF)
