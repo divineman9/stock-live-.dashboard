@@ -1,6 +1,5 @@
 import streamlit as st
 import requests
-import time
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 import pytz
@@ -24,9 +23,9 @@ STOCKS = {
     "Industrial": ["CAT", "BA", "HON", "UPS", "GE"],
     "Oil": ["XOM", "CVX", "COP", "OXY", "EOG", "MPC", "PSX"],
     "Gold": ["NEM", "GOLD", "AEM", "FNV", "WPM", "GFI", "KGC"],
-    "Copper": ["FCX", "SCCO", "TECK", "HBM", "COPX", "ERO", "ANTO"],
+    "Copper": ["FCX", "SCCO", "TECK", "HBM", "COPX", "ERO", "IVPAF"],
     "Space": ["LMT", "NOC", "BA", "RTX", "RKLB", "LUNR", "RDW"],
-    "Fertilizers": ["NTR", "MOS", "CF", "FMC", "ICL", "IPI", "RKDA"],
+    "Fertilizers": ["NTR", "MOS", "CF", "FMC", "ICL", "IPI", "CTVA"],
 }
 INDICES = ["SPY", "QQQ", "DIA"]
 # Macro indicators: 10Y Treasury Yield, VIX (fear index), XLF (financials ETF)
@@ -303,7 +302,12 @@ st.markdown("""
 st.title("📊 Live Stock Market Dashboard")
 
 # Fetch data
-data, phase = fetch_all_data()
+with st.spinner("Loading market data..."):
+    data, phase = fetch_all_data()
+
+if not data:
+    st.error("Unable to fetch market data. Please refresh the page.")
+    st.stop()
 
 # Phase badge
 phase_labels = {
@@ -475,11 +479,7 @@ with col2:
 
 # --- Auto Refresh ---
 st.markdown("---")
-st.caption("Auto-refreshes every 30 seconds. Click the button below to refresh manually.")
+st.caption("Data refreshes every 20 seconds (cache TTL). Click below to force refresh.")
 if st.button("🔄 Refresh Now"):
     st.cache_data.clear()
     st.rerun()
-
-# Auto-rerun every 30 seconds
-time.sleep(30)
-st.rerun()
