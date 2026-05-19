@@ -368,7 +368,7 @@ st.markdown(f"""
   </div>
   <div style="display:flex;align-items:center;justify-content:center;gap:15px;">
     <div style="text-align:center;">
-      <img src="https://cdn-icons-png.flaticon.com/512/3468/3468377.png" style="width:60px;height:60px;" />
+      <div style="font-size:2.5rem;">🐂</div>
       <div style="font-size:1.5rem;font-weight:800;color:#276749;">{bull_pct}%</div>
       <div style="font-size:0.8rem;color:#718096;">{bulls} stocks up</div>
     </div>
@@ -378,7 +378,7 @@ st.markdown(f"""
       </div>
     </div>
     <div style="text-align:center;">
-      <img src="https://cdn-icons-png.flaticon.com/512/3468/3468295.png" style="width:60px;height:60px;" />
+      <div style="font-size:2.5rem;">🐻</div>
       <div style="font-size:1.5rem;font-weight:800;color:#9b2c2c;">{bear_pct}%</div>
       <div style="font-size:0.8rem;color:#718096;">{bears} stocks down</div>
     </div>
