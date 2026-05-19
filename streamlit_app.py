@@ -307,6 +307,19 @@ st.markdown("""
         padding: 12px 16px;
         margin-bottom: 8px;
     }
+    /* Dropdown styling */
+    div[data-baseweb="select"] > div {
+        background-color: #1a365d !important;
+        color: white !important;
+        border-radius: 8px !important;
+        border: none !important;
+    }
+    div[data-baseweb="select"] > div > div {
+        color: white !important;
+    }
+    div[data-baseweb="select"] svg {
+        fill: white !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
