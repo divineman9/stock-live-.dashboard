@@ -1,0 +1,331 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f0f4f8;
+  color: #2d3748;
+  min-height: 100vh;
+  padding: 1.5rem;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+header h1 {
+  font-size: 2rem;
+  color: #1a365d;
+  margin-bottom: 0.4rem;
+}
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.phase-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.2rem 0.7rem;
+  border-radius: 12px;
+  letter-spacing: 0.5px;
+}
+
+.phase-badge.premarket { background: #fefcbf; color: #975a16; }
+.phase-badge.market { background: #c6f6d5; color: #276749; }
+.phase-badge.afterhours { background: #e9d8fd; color: #553c9a; }
+.phase-badge.closed { background: #e2e8f0; color: #4a5568; }
+.phase-badge.transition { background: #fed7aa; color: #9c4221; }
+
+.timestamp {
+  color: #a0aec0;
+  font-size: 0.8rem;
+}
+
+.hint {
+  font-size: 0.75rem;
+  color: #a0aec0;
+  font-weight: 400;
+}
+
+/* Index Bar */
+.index-bar {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.index-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 0.85rem 1.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  border-left: 4px solid #cbd5e0;
+  transition: border-color 0.3s, transform 0.2s;
+}
+
+.index-card:hover { transform: translateY(-1px); }
+.index-card.positive { border-left-color: #38a169; }
+.index-card.negative { border-left-color: #e53e3e; }
+
+.idx-name {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #2d3748;
+}
+
+.idx-price {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.idx-change {
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+}
+
+.idx-change.positive { color: #276749; background: #c6f6d5; }
+.idx-change.negative { color: #9b2c2c; background: #fed7d7; }
+
+/* Insights */
+.insights-box {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.1rem 1.4rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  border-left: 4px solid #4299e1;
+}
+
+.insights-box h2 {
+  font-size: 1rem;
+  color: #2b6cb0;
+  margin-bottom: 0.6rem;
+}
+
+.insight-item {
+  padding: 0.35rem 0;
+  font-size: 0.9rem;
+  color: #4a5568;
+  line-height: 1.5;
+}
+
+/* Sector Heatmap */
+.sector-heatmap {
+  margin-bottom: 1.5rem;
+}
+
+.sector-heatmap h2 {
+  font-size: 1rem;
+  color: #2d3748;
+  margin-bottom: 0.6rem;
+}
+
+.heatmap-grid {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.heatmap-cell {
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #fff;
+  text-align: center;
+  min-width: 110px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  user-select: none;
+}
+
+.heatmap-cell:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.heatmap-cell.strong-green { background: #276749; }
+.heatmap-cell.green { background: #38a169; }
+.heatmap-cell.light-green { background: #68d391; color: #22543d; }
+.heatmap-cell.neutral { background: #a0aec0; color: #2d3748; }
+.heatmap-cell.light-red { background: #fc8181; color: #742a2a; }
+.heatmap-cell.red { background: #e53e3e; }
+.heatmap-cell.strong-red { background: #9b2c2c; }
+
+/* Two Column Layout */
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+@media (max-width: 768px) {
+  .two-col { grid-template-columns: 1fr; }
+  .index-bar { flex-direction: column; align-items: center; }
+}
+
+.panel {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.panel h2 {
+  font-size: 1rem;
+  margin-bottom: 0.6rem;
+  color: #2d3748;
+}
+
+.gainers-panel { border-top: 3px solid #38a169; }
+.losers-panel { border-top: 3px solid #e53e3e; }
+
+/* Stock Cards */
+.stock-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.stock-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  background: #f7fafc;
+  transition: background 0.15s;
+}
+
+.stock-row:hover {
+  background: #edf2f7;
+}
+
+.stock-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.stock-ticker {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #2d3748;
+  min-width: 48px;
+}
+
+.stock-sector {
+  font-size: 0.7rem;
+  color: #718096;
+  background: #edf2f7;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+}
+
+.premarket-tag {
+  font-size: 0.65rem;
+  color: #975a16;
+  background: #fefcbf;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.stock-right {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  text-align: right;
+}
+
+.stock-price {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.stock-change {
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 6px;
+  min-width: 120px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.stock-change.positive { color: #276749; background: #c6f6d5; }
+.stock-change.negative { color: #9b2c2c; background: #fed7d7; }
+
+.stock-volume {
+  font-size: 0.7rem;
+  color: #a0aec0;
+  min-width: 45px;
+  text-align: right;
+}
+
+.prev-close {
+  font-size: 0.7rem;
+  color: #718096;
+  min-width: 70px;
+  text-align: right;
+}
+
+.muted {
+  color: #a0aec0;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+/* Sector Detail View */
+.sector-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.back-btn {
+  background: #edf2f7;
+  border: 1px solid #cbd5e0;
+  color: #4a5568;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: background 0.15s;
+}
+
+.back-btn:hover {
+  background: #e2e8f0;
+}
+
+.sector-header h2 {
+  font-size: 1.3rem;
+  color: #1a365d;
+}
+
+.hidden {
+  display: none !important;
+}

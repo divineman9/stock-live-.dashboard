@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Market Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📊 Live Market Dashboard</h1>
+      <div class="header-meta">
+        <span class="phase-badge" id="phase-badge">--</span>
+        <span class="timestamp">Last updated: <span id="last-update">--</span></span>
+      </div>
+    </header>
+
+    <!-- Index Bar -->
+    <section class="index-bar" id="index-bar">
+      <div class="index-card" id="idx-SPY">
+        <span class="idx-name">SPY</span>
+        <span class="idx-price">--</span>
+        <span class="idx-change">--</span>
+      </div>
+      <div class="index-card" id="idx-QQQ">
+        <span class="idx-name">QQQ</span>
+        <span class="idx-price">--</span>
+        <span class="idx-change">--</span>
+      </div>
+      <div class="index-card" id="idx-DIA">
+        <span class="idx-name">DIA</span>
+        <span class="idx-price">--</span>
+        <span class="idx-change">--</span>
+      </div>
+    </section>
+
+    <!-- Market Insights -->
+    <section class="insights-box" id="insights-box">
+      <h2>🧠 Market Insights</h2>
+      <div id="insights-content">
+        <p class="muted">Loading insights...</p>
+      </div>
+    </section>
+
+    <!-- Sector Heatmap (clickable) -->
+    <section class="sector-heatmap">
+      <h2>Sector Performance <span class="hint">(click to explore)</span></h2>
+      <div class="heatmap-grid" id="heatmap-grid"></div>
+    </section>
+
+    <!-- Main View (toggles between overview and sector detail) -->
+    <div id="main-view">
+      <!-- Overview: Gainers & Losers -->
+      <div id="overview-view">
+        <div class="two-col">
+          <section class="panel gainers-panel">
+            <h2>🚀 Top Gainers</h2>
+            <div class="stock-list" id="gainers-list">
+              <p class="muted">Loading...</p>
+            </div>
+          </section>
+          <section class="panel losers-panel">
+            <h2>🔻 Top Losers</h2>
+            <div class="stock-list" id="losers-list">
+              <p class="muted">Loading...</p>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- Sector Detail View -->
+      <div id="sector-view" class="hidden">
+        <div class="sector-header">
+          <button id="back-btn" class="back-btn">← Back to Overview</button>
+          <h2 id="sector-title">Sector</h2>
+        </div>
+        <div class="two-col">
+          <section class="panel gainers-panel">
+            <h2>🚀 Sector Gainers</h2>
+            <div class="stock-list" id="sector-gainers"></div>
+          </section>
+          <section class="panel losers-panel">
+            <h2>🔻 Sector Losers</h2>
+            <div class="stock-list" id="sector-losers"></div>
+          </section>
+        </div>
+        <section class="panel" style="margin-top:1rem;">
+          <h2>All Stocks</h2>
+          <div class="stock-list" id="sector-all"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

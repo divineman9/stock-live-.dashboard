@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stock Earnings Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Stock Earnings Dashboard</h1>
+    <p class="subtitle">Enter stock tickers to view earnings beat analysis</p>
+
+    <div class="search-box">
+      <input
+        type="text"
+        id="ticker-input"
+        placeholder="Enter tickers separated by commas (e.g. AAPL, MSFT, GOOGL)"
+        autocomplete="off"
+      />
+      <button id="search-btn">Analyze</button>
+    </div>
+
+    <div id="error-msg" class="error hidden"></div>
+    <div id="loading" class="loading hidden">
+      <div class="spinner"></div>
+      <span>Fetching earnings data...</span>
+    </div>
+
+    <div id="earnings-container" class="earnings-container hidden">
+      <div class="table-wrapper">
+        <table id="earnings-table">
+          <thead>
+            <tr>
+              <th rowspan="2" class="sticky-col">Stock</th>
+              <th colspan="3" class="group-header eps-group">EPS</th>
+              <th colspan="3" class="group-header rev-group">Revenue</th>
+              <th colspan="3" class="group-header guidance-group">Guidance (EPS)</th>
+              <th rowspan="2">Avg Vol</th>
+              <th rowspan="2">Company Does</th>
+            </tr>
+            <tr>
+              <th class="eps-group">Expected</th>
+              <th class="eps-group">Actual</th>
+              <th class="eps-group">% Beat</th>
+              <th class="rev-group">Expected</th>
+              <th class="rev-group">Actual</th>
+              <th class="rev-group">% Beat</th>
+              <th class="guidance-group">Expected</th>
+              <th class="guidance-group">Actual</th>
+              <th class="guidance-group">% Beat</th>
+            </tr>
+          </thead>
+          <tbody id="earnings-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="summary-container" class="summary-container hidden">
+      <h3>Strong Beat Analysis</h3>
+      <div id="summary-content"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
