@@ -999,31 +999,25 @@ def fetch_extended_hours_data(mode):
                 return None
             result = resp.json()["chart"]["result"][0]
             meta = result["meta"]
+            # During pre-market: regularMarketPrice = yesterday's close (today hasn't opened)
+            # During post-market: regularMarketPrice = today's 4PM close
+            # chartPreviousClose is unreliable (sometimes returns 2 days ago)
             regular_close = meta.get("regularMarketPrice", 0)
-            prev_close = meta.get("chartPreviousClose", 0)
             closes = result["indicators"]["quote"][0]["close"]
             valid = [c for c in closes if c is not None]
             latest = valid[-1] if valid else None
 
-            if not latest:
+            if not latest or not regular_close or regular_close == 0:
                 return None
 
-            if mode == "Post-Market":
-                # After-hours: compare latest candle vs today's 4PM close
-                if not regular_close or regular_close == 0:
-                    return None
-                change = latest - regular_close
-                pct = (change / regular_close) * 100
-                ref_price = regular_close
-                label = "Close"
-            else:
-                # Pre-Market: compare latest candle vs yesterday's close
-                ref_price = prev_close if prev_close else regular_close
-                if not ref_price or ref_price == 0:
-                    return None
-                change = latest - ref_price
-                pct = (change / ref_price) * 100
-                label = "Prev Close"
+            # Both Pre-Market and Post-Market use regularMarketPrice as reference
+            # Pre-Market: regularMarketPrice = yesterday's close (correct ref)
+            # Post-Market: regularMarketPrice = today's 4PM close (correct ref)
+            ref_price = regular_close
+            change = latest - ref_price
+            pct = (change / ref_price) * 100
+
+            label = "Yesterday's Close" if mode == "Pre-Market" else "Today's Close"
 
             primary_sector = "Index" if ticker in INDICES else TICKER_SECTORS.get(ticker, ["Unknown"])[0]
 
