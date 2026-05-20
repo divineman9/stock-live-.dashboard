@@ -980,6 +980,94 @@ with col2:
     else:
         st.info("No losers")
 
+# --- Post-Market / After-Hours Section ---
+if phase in ("afterhours", "closed"):
+    @st.cache_data(ttl=60)
+    def fetch_afterhours_data():
+        """Fetch after-hours prices for Core stocks."""
+        CORE_AH = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "BRK-B", "LLY", "JPM", "AVGO",
+                   "TSLA", "AMD", "CRM", "INTC", "BA"]
+        ah_results = []
+
+        def fetch_ah_single(ticker):
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=5m&range=1d&includePrePost=true"
+            try:
+                resp = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+                if resp.status_code != 200:
+                    return None
+                result = resp.json()["chart"]["result"][0]
+                meta = result["meta"]
+                regular_close = meta.get("regularMarketPrice", 0)
+                # Get latest candle (includes after-hours)
+                closes = result["indicators"]["quote"][0]["close"]
+                valid = [c for c in closes if c is not None]
+                latest = valid[-1] if valid else None
+                if not latest or not regular_close or regular_close == 0:
+                    return None
+                ah_change = latest - regular_close
+                ah_pct = (ah_change / regular_close) * 100
+                if abs(ah_pct) < 0.01:
+                    return None  # Skip if no real after-hours movement
+                return {
+                    "ticker": ticker,
+                    "close_price": round(regular_close, 2),
+                    "ah_price": round(latest, 2),
+                    "ah_change": round(ah_change, 2),
+                    "ah_pct": round(ah_pct, 2),
+                }
+            except:
+                return None
+
+        with ThreadPoolExecutor(max_workers=10) as ex:
+            results = list(ex.map(fetch_ah_single, CORE_AH))
+        return [r for r in results if r is not None]
+
+    ah_data = fetch_afterhours_data()
+    if ah_data:
+        ah_up = sorted([s for s in ah_data if s["ah_pct"] > 0.05], key=lambda x: x["ah_pct"], reverse=True)
+        ah_down = sorted([s for s in ah_data if s["ah_pct"] < -0.05], key=lambda x: x["ah_pct"])
+
+        phase_label = "After Hours" if phase == "afterhours" else "Post-Market (Final)"
+        st.markdown("---")
+        st.markdown(f"""
+        <div style="background:white;border-left:4px solid #6b46c1;border-radius:8px;padding:14px 18px;margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,0.05);">
+            <div style="font-weight:700;color:#2d3748;margin-bottom:4px;">🌙 {phase_label} Movers (vs 4PM Close)</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        ah_col1, ah_col2 = st.columns(2)
+        with ah_col1:
+            st.markdown("**▲ After-Hours Gainers**")
+            if ah_up:
+                for s in ah_up[:10]:
+                    st.markdown(
+                        f'<div class="stock-row">'
+                        f'<span><b>{s["ticker"]}</b></span>'
+                        f'<span><b>${s["ah_price"]:.2f}</b> &nbsp;'
+                        f'<span class="gain"><b>+${s["ah_change"]:.2f} (+{s["ah_pct"]:.2f}%)</b></span>'
+                        f'<br/><small style="color:#a0aec0">Close: ${s["close_price"]:.2f}</small></span>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+            else:
+                st.caption("No after-hours gainers")
+
+        with ah_col2:
+            st.markdown("**▼ After-Hours Losers**")
+            if ah_down:
+                for s in ah_down[:10]:
+                    st.markdown(
+                        f'<div class="stock-row">'
+                        f'<span><b>{s["ticker"]}</b></span>'
+                        f'<span><b>${s["ah_price"]:.2f}</b> &nbsp;'
+                        f'<span class="loss"><b>${s["ah_change"]:.2f} ({s["ah_pct"]:.2f}%)</b></span>'
+                        f'<br/><small style="color:#a0aec0">Close: ${s["close_price"]:.2f}</small></span>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+            else:
+                st.caption("No after-hours losers")
+
 # --- Auto Refresh ---
 st.markdown("---")
 st.caption("Data refreshes every 20 seconds (cache TTL). Click below to force refresh.")
