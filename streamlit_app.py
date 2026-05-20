@@ -630,8 +630,8 @@ if beast_data:
 # --- Day High/Low Breakout Alerts ---
 @st.cache_data(ttl=25)
 def fetch_day_highlow():
-    """Fetch intraday high/low for Core stocks to detect breakouts."""
-    CORE_TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "BRK-B", "LLY", "JPM", "AVGO"]
+    """Fetch intraday high/low for ALL tracked stocks to detect breakouts."""
+    ALL_TRACKED = list(set([t for tickers in STOCKS.values() for t in tickers]))
     alerts = []
     
     def check_ticker(ticker):
@@ -676,38 +676,48 @@ def fetch_day_highlow():
         except:
             return None
     
-    with ThreadPoolExecutor(max_workers=10) as ex:
-        results = list(ex.map(check_ticker, CORE_TICKERS))
+    with ThreadPoolExecutor(max_workers=15) as ex:
+        results = list(ex.map(check_ticker, ALL_TRACKED))
     
     return [r for r in results if r is not None]
 
 breakout_alerts = fetch_day_highlow()
 if breakout_alerts:
-    st.markdown("""
+    # Sort: highs first, then lows
+    highs = sorted([a for a in breakout_alerts if a["type"] == "high"], key=lambda x: x["price"], reverse=True)
+    lows = sorted([a for a in breakout_alerts if a["type"] == "low"], key=lambda x: x["price"], reverse=True)
+
+    st.markdown(f"""
     <div style="background:#fffbeb;border:2px solid #f6ad55;border-radius:12px;padding:14px 18px;margin-bottom:16px;">
-        <div style="font-weight:700;color:#c05621;margin-bottom:8px;">🚨 Live Breakout Alerts (Core Stocks)</div>
+        <div style="font-weight:700;color:#c05621;margin-bottom:8px;">🚨 Live Breakout Alerts — All Sectors ({len(breakout_alerts)} stocks at day high/low)</div>
     </div>
     """, unsafe_allow_html=True)
-    
-    for alert in breakout_alerts:
-        if alert["type"] == "high":
-            st.markdown(
-                f'<div style="background:#c6f6d5;border-radius:8px;padding:10px 14px;margin-bottom:6px;">'
-                f'<b style="color:#276749;">▲ {alert["ticker"]} breaking DAY HIGH</b> — '
-                f'at ${alert["price"]:.2f} (high: ${alert["level"]:.2f}) | '
-                f'Day low: ${alert["day_low"]:.2f} | Prev close: ${alert["prev_close"]:.2f}'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                f'<div style="background:#fed7d7;border-radius:8px;padding:10px 14px;margin-bottom:6px;">'
-                f'<b style="color:#9b2c2c;">▼ {alert["ticker"]} breaking DAY LOW</b> — '
-                f'at ${alert["price"]:.2f} (low: ${alert["level"]:.2f}) | '
-                f'Day high: ${alert["day_high"]:.2f} | Prev close: ${alert["prev_close"]:.2f}'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
+
+    brk_col1, brk_col2 = st.columns(2)
+    with brk_col1:
+        if highs:
+            st.markdown(f"**▲ Breaking Day High ({len(highs)}):**")
+            for alert in highs:
+                sector = TICKER_SECTORS.get(alert["ticker"], [""])[0]
+                st.markdown(
+                    f'<div style="background:#c6f6d5;border-radius:8px;padding:8px 12px;margin-bottom:4px;">'
+                    f'<b style="color:#276749;">▲ {alert["ticker"]}</b> <small style="color:#718096;">{sector}</small><br/>'
+                    f'<small>At ${alert["price"]:.2f} (High: ${alert["level"]:.2f}) | Low: ${alert["day_low"]:.2f} | Prev: ${alert["prev_close"]:.2f}</small>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+    with brk_col2:
+        if lows:
+            st.markdown(f"**▼ Breaking Day Low ({len(lows)}):**")
+            for alert in lows:
+                sector = TICKER_SECTORS.get(alert["ticker"], [""])[0]
+                st.markdown(
+                    f'<div style="background:#fed7d7;border-radius:8px;padding:8px 12px;margin-bottom:4px;">'
+                    f'<b style="color:#9b2c2c;">▼ {alert["ticker"]}</b> <small style="color:#718096;">{sector}</small><br/>'
+                    f'<small>At ${alert["price"]:.2f} (Low: ${alert["level"]:.2f}) | High: ${alert["day_high"]:.2f} | Prev: ${alert["prev_close"]:.2f}</small>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
 
 # --- Index Bar ---
 st.subheader("Market Indices")
