@@ -1,4 +1,5 @@
 import streamlit as st
+from streamlit_autorefresh import st_autorefresh
 import requests
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
@@ -11,6 +12,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
+# Auto-refresh every 30 seconds
+st_autorefresh(interval=30000, limit=None, key="data_refresh")
 
 # --- Configuration ---
 STOCKS = {
