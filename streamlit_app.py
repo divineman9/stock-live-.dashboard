@@ -1054,7 +1054,7 @@ if vix_data:
                 <div style="color:#4a5568;font-size:0.8rem;">
                     • <b>Bulls:</b> {bull_pct}%<br/>
                     • <b>Bears:</b> {bear_pct}%<br/>
-                    • <b>SPY:</b> {spy_data['pct_change']:+.1f}% if spy_data else '--'
+                    • <b>SPY:</b> {(f"{spy_data['pct_change']:+.1f}%") if spy_data else '--'}
                 </div>
             </div>
         </div>
