@@ -1687,7 +1687,7 @@ def match_to_tickers(headline, tickers):
         "LLY": ["eli lilly", "lilly", "mounjaro", "tirzepatide"],
         "JPM": ["jpmorgan", "jp morgan", "jamie dimon"],
         "AVGO": ["broadcom"],
-        "TSLA": ["tesla", "elon musk", "cybertruck"],
+        "TSLA": ["tesla", "elon musk", "cybertruck", "model 3", "model y", "model s", "powerwall", "megapack", "supercharger"],
         "AMD": ["amd", "lisa su", "radeon"],
         "INTC": ["intel"],
         "CRM": ["salesforce"],
@@ -1725,9 +1725,14 @@ with catalyst_tab:
         macro_matches = [h for h in macro_headlines if match_to_tickers(h["title"], [ticker])]
 
         all_news = []
-        for n in stock_news_raw[:3]:
-            s, r = score_headline(n.get("title", ""))
-            all_news.append({"title": n.get("title", ""), "source": n.get("publisher", "Yahoo"), "sentiment": s, "reason": r})
+        for n in stock_news_raw[:5]:
+            title = n.get("title", "")
+            # Strict filter: only show if headline actually mentions the ticker or company
+            matched = match_to_tickers(title, [ticker])
+            if not matched:
+                continue  # Skip loosely related Yahoo results
+            s, r = score_headline(title)
+            all_news.append({"title": title, "source": n.get("publisher", "Yahoo"), "sentiment": s, "reason": r})
         for n in macro_matches[:2]:
             s, r = score_headline(n.get("title", ""))
             all_news.append({"title": n.get("title", ""), "source": n.get("source", ""), "sentiment": s, "reason": r})
