@@ -1600,7 +1600,7 @@ st.caption("Latest news for SPY top 10 stocks — scored for market impact | Sou
 @st.cache_data(ttl=300)
 def fetch_stock_news(ticker):
     try:
-        url = f"https://query1.finance.yahoo.com/v1/finance/search?q={ticker}&newsCount=5&quotesCount=0"
+        url = f"https://query1.finance.yahoo.com/v1/finance/search?q={ticker}&newsCount=8&quotesCount=0"
         r = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
         if r.status_code != 200:
             return []
@@ -1609,8 +1609,31 @@ def fetch_stock_news(ticker):
         return []
 
 @st.cache_data(ttl=300)
+def fetch_analyst_calls(ticker):
+    """Fetch today's analyst upgrade/downgrade/price target news."""
+    try:
+        url = f"https://query1.finance.yahoo.com/v1/finance/search?q={ticker}+analyst+upgrade+downgrade+price+target&newsCount=5&quotesCount=0"
+        r = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+        if r.status_code != 200:
+            return []
+        news = r.json().get("news", [])
+        today_ts = datetime.now(ET).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+        analyst_kws = ["upgrade", "downgrade", "price target", "initiates", "raises target",
+                       "lowers target", "buy rating", "sell rating", "overweight", "underweight",
+                       "outperform", "underperform", "neutral", "hold", "analyst"]
+        results = []
+        for n in news:
+            ts = n.get("providerPublishTime", 0)
+            title = n.get("title", "").lower()
+            if ts >= today_ts and any(kw in title for kw in analyst_kws):
+                results.append(n)
+        return results
+    except:
+        return []
+
+@st.cache_data(ttl=300)
 def fetch_macro_headlines():
-    import xml.etree.ElementTree as ET
+    import xml.etree.ElementTree as ET_xml
     headlines = []
     sources = [
         ("CNBC", "https://www.cnbc.com/id/100003114/device/rss/rss.html"),
@@ -1622,15 +1645,17 @@ def fetch_macro_headlines():
             r = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
             if r.status_code != 200:
                 continue
-            root = ET.fromstring(r.content)
+            root = ET_xml.fromstring(r.content)
             for item in root.findall(".//item"):
                 title_el = item.find("title")
                 link_el = item.find("link")
+                pub_el = item.find("pubDate")
                 if title_el is not None and title_el.text:
                     headlines.append({
                         "title": title_el.text,
                         "source": source_name,
                         "link": link_el.text if link_el is not None else "",
+                        "pub": pub_el.text if pub_el is not None else "",
                     })
         except:
             continue
@@ -1711,57 +1736,79 @@ macro_headlines = fetch_macro_headlines()
 catalyst_tab, macro_tab = st.tabs(["🎯 Stock Catalysts", "📡 Market Headlines (CNBC + MarketWatch)"])
 
 with catalyst_tab:
-    cat_cols = st.columns(2)
+    st.caption("Click any stock to expand news and analyst calls")
     for idx, ticker in enumerate(CATALYST_TICKERS):
         stock_info = active_data.get(ticker, {})
         pct = stock_info.get("pct_change", 0)
         price = stock_info.get("price", 0)
         pm_tag = " 🏷️PM" if stock_info.get("is_premarket") else ""
         sign = "+" if pct >= 0 else ""
-        border_c = "#276749" if pct >= 0 else "#9b2c2c"
-        pct_color = "#276749" if pct >= 0 else "#9b2c2c"
+        pct_color = "🟢" if pct >= 0 else "🔴"
 
         stock_news_raw = fetch_stock_news(ticker)
+        analyst_news = fetch_analyst_calls(ticker)
         macro_matches = [h for h in macro_headlines if match_to_tickers(h["title"], [ticker])]
 
+        # Build news with timestamps + strict matching
         all_news = []
-        for n in stock_news_raw[:5]:
+        for n in stock_news_raw[:8]:
             title = n.get("title", "")
-            # Strict filter: only show if headline actually mentions the ticker or company
-            matched = match_to_tickers(title, [ticker])
-            if not matched:
-                continue  # Skip loosely related Yahoo results
+            if not match_to_tickers(title, [ticker]):
+                continue
+            ts = n.get("providerPublishTime", 0)
+            time_str = datetime.fromtimestamp(ts, tz=ET).strftime("%b %d %I:%M %p ET") if ts else ""
             s, r = score_headline(title)
-            all_news.append({"title": title, "source": n.get("publisher", "Yahoo"), "sentiment": s, "reason": r})
+            all_news.append({"title": title, "source": n.get("publisher", "Yahoo"),
+                             "sentiment": s, "reason": r, "time": time_str})
         for n in macro_matches[:2]:
             s, r = score_headline(n.get("title", ""))
-            all_news.append({"title": n.get("title", ""), "source": n.get("source", ""), "sentiment": s, "reason": r})
+            all_news.append({"title": n.get("title", ""), "source": n.get("source", ""),
+                             "sentiment": s, "reason": r, "time": n.get("pub", "")[:16]})
 
-        with cat_cols[idx % 2]:
-            header_html = (
-                f'<div style="background:white;border-radius:10px;padding:12px;margin-bottom:8px;'
-                f'box-shadow:0 2px 6px rgba(0,0,0,0.06);border-top:3px solid {border_c};">'
-                f'<div style="display:flex;justify-content:space-between;margin-bottom:6px;">'
-                f'<b style="font-size:1rem;color:#2d3748;">{ticker}{pm_tag}</b>'
-                f'<span style="color:{pct_color};font-weight:700;">${price:.2f} ({sign}{pct:.2f}%)</span>'
-                f'</div>'
-            )
-            news_html = ""
+        # Analyst calls today
+        analyst_items = []
+        for n in analyst_news[:3]:
+            ts = n.get("providerPublishTime", 0)
+            time_str = datetime.fromtimestamp(ts, tz=ET).strftime("%b %d %I:%M %p ET") if ts else ""
+            s, r = score_headline(n.get("title", ""))
+            analyst_items.append({"title": n.get("title", ""), "source": n.get("publisher", ""),
+                                  "sentiment": s, "reason": r, "time": time_str})
+
+        # Collapsed expander per stock
+        analyst_badge = f" 📊{len(analyst_items)}" if analyst_items else ""
+        news_badge = f" 📰{len(all_news)}" if all_news else ""
+        label = f"{pct_color} {ticker}{pm_tag}  ${price:.2f}  ({sign}{pct:.2f}%){analyst_badge}{news_badge}"
+
+        with st.expander(label, expanded=False):
+            if analyst_items:
+                st.markdown("**📊 Today's Analyst Calls:**")
+                for a in analyst_items:
+                    dot = "🟢" if a["sentiment"] == "bullish" else "🔴" if a["sentiment"] == "bearish" else "🟡"
+                    short = a["title"][:95] + "..." if len(a["title"]) > 95 else a["title"]
+                    st.markdown(
+                        f'<div style="background:#f0fff4;border-left:3px solid #38a169;'
+                        f'border-radius:4px;padding:6px 10px;margin-bottom:4px;">'
+                        f'{dot} <b style="font-size:0.82rem;color:#2d3748;">{short}</b><br/>'
+                        f'<small style="color:#718096;">[{a["source"]}] · {a["time"]}</small>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+                st.markdown("---")
+
             if all_news:
-                for n in all_news[:3]:
+                st.markdown("**📰 Latest News:**")
+                for n in all_news[:4]:
                     dot = "🟢" if n["sentiment"] == "bullish" else "🔴" if n["sentiment"] == "bearish" else "⚪"
-                    short = n["title"][:85] + "..." if len(n["title"]) > 85 else n["title"]
-                    news_html += (
-                        f'<div style="padding:4px 0;border-bottom:1px solid #f7fafc;">'
-                        f'{dot} <small style="color:#718096;">[{n["source"]}]</small> '
-                        f'<span style="font-size:0.8rem;color:#2d3748;">{short}</span><br/>'
-                        f'<small style="color:#a0aec0;font-style:italic;">{n["reason"]}</small>'
-                        f'</div>'
+                    short = n["title"][:95] + "..." if len(n["title"]) > 95 else n["title"]
+                    st.markdown(
+                        f'<div style="padding:5px 0;border-bottom:1px solid #f7fafc;">'
+                        f'{dot} <span style="font-size:0.82rem;color:#2d3748;">{short}</span><br/>'
+                        f'<small style="color:#a0aec0;">[{n["source"]}] · {n["time"]} · <i>{n["reason"]}</i></small>'
+                        f'</div>',
+                        unsafe_allow_html=True,
                     )
             else:
-                news_html = '<small style="color:#a0aec0;">No recent news</small>'
-
-            st.markdown(header_html + news_html + '</div>', unsafe_allow_html=True)
+                st.caption("No relevant news found today")
 
 with macro_tab:
     st.markdown("**Latest headlines from CNBC & MarketWatch:**")
@@ -1773,10 +1820,12 @@ with macro_tab:
             f'<span style="background:#ebf4ff;color:#2b6cb0;padding:1px 5px;border-radius:4px;font-size:0.7rem;font-weight:600;">{t}</span>'
             for t in matched
         ])
+        pub_time = h.get("pub", "")[:16]
         st.markdown(
             f'<div style="padding:5px 0;border-bottom:1px solid #f0f4f8;">'
             f'{dot} <small style="color:#718096;font-weight:600;">[{h["source"]}]</small> '
             f'<span style="font-size:0.83rem;color:#2d3748;">{h["title"]}</span> {tags}'
+            f'<br/><small style="color:#a0aec0;">{pub_time}</small>'
             f'</div>',
             unsafe_allow_html=True,
         )
