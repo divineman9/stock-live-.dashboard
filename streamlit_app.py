@@ -339,7 +339,7 @@ if not data:
     st.error("Unable to fetch market data. Please refresh the page.")
     st.stop()
 
-# Phase badge
+# Phase badge and Mode selector
 phase_labels = {
     "premarket": "🌅 Pre-Market",
     "market": "🟢 Market Open",
@@ -347,7 +347,12 @@ phase_labels = {
     "afterhours": "🌙 After Hours",
     "closed": "🔴 Market Closed",
 }
-st.caption(f"{phase_labels.get(phase, phase)} | Last updated: {datetime.now(ET).strftime('%I:%M:%S %p ET')}")
+
+mode_col1, mode_col2 = st.columns([3, 2])
+with mode_col1:
+    st.caption(f"{phase_labels.get(phase, phase)} | Last updated: {datetime.now(ET).strftime('%I:%M:%S %p ET')}")
+with mode_col2:
+    view_mode = st.radio("View Mode", ["Live", "Pre-Market", "Post-Market"], horizontal=True, index=0)
 
 # --- Bulls vs Bears ---
 stocks_all = {k: v for k, v in data.items() if k not in INDICES and k not in MACRO_TICKERS}
@@ -980,93 +985,117 @@ with col2:
     else:
         st.info("No losers")
 
-# --- Post-Market / After-Hours Section ---
-if phase in ("afterhours", "closed"):
-    @st.cache_data(ttl=60)
-    def fetch_afterhours_data():
-        """Fetch after-hours prices for Core stocks."""
-        CORE_AH = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "BRK-B", "LLY", "JPM", "AVGO",
-                   "TSLA", "AMD", "CRM", "INTC", "BA"]
-        ah_results = []
+# --- Pre-Market / Post-Market Mode View ---
+@st.cache_data(ttl=60)
+def fetch_extended_hours_data(mode):
+    """Fetch pre-market or post-market data for ALL tracked stocks."""
+    all_stock_tickers = [t for t in ALL_TICKERS if not t.startswith("^")]
 
-        def fetch_ah_single(ticker):
-            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=5m&range=1d&includePrePost=true"
-            try:
-                resp = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
-                if resp.status_code != 200:
-                    return None
-                result = resp.json()["chart"]["result"][0]
-                meta = result["meta"]
-                regular_close = meta.get("regularMarketPrice", 0)
-                # Get latest candle (includes after-hours)
-                closes = result["indicators"]["quote"][0]["close"]
-                valid = [c for c in closes if c is not None]
-                latest = valid[-1] if valid else None
-                if not latest or not regular_close or regular_close == 0:
-                    return None
-                ah_change = latest - regular_close
-                ah_pct = (ah_change / regular_close) * 100
-                if abs(ah_pct) < 0.01:
-                    return None  # Skip if no real after-hours movement
-                return {
-                    "ticker": ticker,
-                    "close_price": round(regular_close, 2),
-                    "ah_price": round(latest, 2),
-                    "ah_change": round(ah_change, 2),
-                    "ah_pct": round(ah_pct, 2),
-                }
-            except:
+    def fetch_extended_single(ticker):
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=5m&range=1d&includePrePost=true"
+        try:
+            resp = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+            if resp.status_code != 200:
+                return None
+            result = resp.json()["chart"]["result"][0]
+            meta = result["meta"]
+            regular_close = meta.get("regularMarketPrice", 0)
+            prev_close = meta.get("chartPreviousClose", 0)
+            closes = result["indicators"]["quote"][0]["close"]
+            valid = [c for c in closes if c is not None]
+            latest = valid[-1] if valid else None
+
+            if not latest or not regular_close:
                 return None
 
-        with ThreadPoolExecutor(max_workers=10) as ex:
-            results = list(ex.map(fetch_ah_single, CORE_AH))
-        return [r for r in results if r is not None]
+            if mode == "Post-Market":
+                # Compare latest (after-hours) vs regular close
+                ref_price = regular_close
+                change = latest - ref_price
+                pct = (change / ref_price) * 100 if ref_price != 0 else 0
+                label = "Close"
+            else:
+                # Pre-Market: compare latest vs previous close
+                ref_price = prev_close if prev_close else regular_close
+                change = latest - ref_price
+                pct = (change / ref_price) * 100 if ref_price != 0 else 0
+                label = "Prev Close"
 
-    ah_data = fetch_afterhours_data()
-    if ah_data:
-        ah_up = sorted([s for s in ah_data if s["ah_pct"] > 0.05], key=lambda x: x["ah_pct"], reverse=True)
-        ah_down = sorted([s for s in ah_data if s["ah_pct"] < -0.05], key=lambda x: x["ah_pct"])
+            if abs(pct) < 0.01:
+                return None
 
-        phase_label = "After Hours" if phase == "afterhours" else "Post-Market (Final)"
-        st.markdown("---")
-        st.markdown(f"""
-        <div style="background:white;border-left:4px solid #6b46c1;border-radius:8px;padding:14px 18px;margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,0.05);">
-            <div style="font-weight:700;color:#2d3748;margin-bottom:4px;">🌙 {phase_label} Movers (vs 4PM Close)</div>
-        </div>
-        """, unsafe_allow_html=True)
+            primary_sector = "Index" if ticker in INDICES else TICKER_SECTORS.get(ticker, ["Unknown"])[0]
 
-        ah_col1, ah_col2 = st.columns(2)
-        with ah_col1:
-            st.markdown("**▲ After-Hours Gainers**")
-            if ah_up:
-                for s in ah_up[:10]:
+            return {
+                "ticker": ticker,
+                "ref_price": round(ref_price, 2),
+                "current_price": round(latest, 2),
+                "change": round(change, 2),
+                "pct_change": round(pct, 2),
+                "sector": primary_sector,
+                "label": label,
+            }
+        except:
+            return None
+
+    with ThreadPoolExecutor(max_workers=15) as ex:
+        results = list(ex.map(fetch_extended_single, all_stock_tickers))
+    return [r for r in results if r is not None]
+
+
+if view_mode in ("Pre-Market", "Post-Market"):
+    st.markdown("---")
+    mode_icon = "🌅" if view_mode == "Pre-Market" else "🌙"
+    st.subheader(f"{mode_icon} {view_mode} Movers (All Sectors)")
+
+    with st.spinner(f"Loading {view_mode.lower()} data..."):
+        ext_data = fetch_extended_hours_data(view_mode)
+
+    if ext_data:
+        # Sector filter
+        ext_sectors = sorted(set(s["sector"] for s in ext_data))
+        ext_sector_filter = st.selectbox("Filter by Sector", ["All"] + ext_sectors, key="ext_sector_filter")
+
+        if ext_sector_filter != "All":
+            ext_data = [s for s in ext_data if s["sector"] == ext_sector_filter]
+
+        ext_up = sorted([s for s in ext_data if s["pct_change"] > 0.05], key=lambda x: x["pct_change"], reverse=True)
+        ext_down = sorted([s for s in ext_data if s["pct_change"] < -0.05], key=lambda x: x["pct_change"])
+
+        ext_col1, ext_col2 = st.columns(2)
+        with ext_col1:
+            st.markdown(f"**▲ {view_mode} Gainers**")
+            if ext_up:
+                for s in ext_up[:15]:
                     st.markdown(
                         f'<div class="stock-row">'
-                        f'<span><b>{s["ticker"]}</b></span>'
-                        f'<span><b>${s["ah_price"]:.2f}</b> &nbsp;'
-                        f'<span class="gain"><b>+${s["ah_change"]:.2f} (+{s["ah_pct"]:.2f}%)</b></span>'
-                        f'<br/><small style="color:#a0aec0">Close: ${s["close_price"]:.2f}</small></span>'
+                        f'<span><b>{s["ticker"]}</b> <small style="color:#718096">{s["sector"]}</small></span>'
+                        f'<span><b>${s["current_price"]:.2f}</b> &nbsp;'
+                        f'<span class="gain"><b>+${s["change"]:.2f} (+{s["pct_change"]:.2f}%)</b></span>'
+                        f'<br/><small style="color:#a0aec0">{s["label"]}: ${s["ref_price"]:.2f}</small></span>'
                         f'</div>',
                         unsafe_allow_html=True,
                     )
             else:
-                st.caption("No after-hours gainers")
+                st.caption("No gainers")
 
-        with ah_col2:
-            st.markdown("**▼ After-Hours Losers**")
-            if ah_down:
-                for s in ah_down[:10]:
+        with ext_col2:
+            st.markdown(f"**▼ {view_mode} Losers**")
+            if ext_down:
+                for s in ext_down[:15]:
                     st.markdown(
                         f'<div class="stock-row">'
-                        f'<span><b>{s["ticker"]}</b></span>'
-                        f'<span><b>${s["ah_price"]:.2f}</b> &nbsp;'
-                        f'<span class="loss"><b>${s["ah_change"]:.2f} ({s["ah_pct"]:.2f}%)</b></span>'
-                        f'<br/><small style="color:#a0aec0">Close: ${s["close_price"]:.2f}</small></span>'
+                        f'<span><b>{s["ticker"]}</b> <small style="color:#718096">{s["sector"]}</small></span>'
+                        f'<span><b>${s["current_price"]:.2f}</b> &nbsp;'
+                        f'<span class="loss"><b>${s["change"]:.2f} ({s["pct_change"]:.2f}%)</b></span>'
+                        f'<br/><small style="color:#a0aec0">{s["label"]}: ${s["ref_price"]:.2f}</small></span>'
                         f'</div>',
                         unsafe_allow_html=True,
                     )
             else:
-                st.caption("No after-hours losers")
+                st.caption("No losers")
+    else:
+        st.info(f"No {view_mode.lower()} data available right now.")
 
 # --- Auto Refresh ---
 st.markdown("---")
