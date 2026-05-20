@@ -1593,6 +1593,191 @@ else:
 
 # ============================================================
 
+# --- Stock Catalyst Scanner ---
+st.subheader("📰 Stock Catalyst Scanner")
+st.caption("Latest news for SPY top 10 stocks — scored for market impact | Sources: Yahoo Finance, CNBC, MarketWatch")
+
+@st.cache_data(ttl=300)
+def fetch_stock_news(ticker):
+    try:
+        url = f"https://query1.finance.yahoo.com/v1/finance/search?q={ticker}&newsCount=5&quotesCount=0"
+        r = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+        if r.status_code != 200:
+            return []
+        return r.json().get("news", [])
+    except:
+        return []
+
+@st.cache_data(ttl=300)
+def fetch_macro_headlines():
+    import xml.etree.ElementTree as ET
+    headlines = []
+    sources = [
+        ("CNBC", "https://www.cnbc.com/id/100003114/device/rss/rss.html"),
+        ("CNBC Markets", "https://www.cnbc.com/id/10001147/device/rss/rss.html"),
+        ("MarketWatch", "https://feeds.marketwatch.com/marketwatch/topstories/"),
+    ]
+    for source_name, url in sources:
+        try:
+            r = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+            if r.status_code != 200:
+                continue
+            root = ET.fromstring(r.content)
+            for item in root.findall(".//item"):
+                title_el = item.find("title")
+                link_el = item.find("link")
+                if title_el is not None and title_el.text:
+                    headlines.append({
+                        "title": title_el.text,
+                        "source": source_name,
+                        "link": link_el.text if link_el is not None else "",
+                    })
+        except:
+            continue
+    return headlines
+
+def score_headline(title):
+    t = title.lower()
+    bullish = {
+        "beats": "Earnings beat", "beat earnings": "Earnings beat",
+        "surges": "Strong move up", "jumps": "Strong move up", "soars": "Strong move up",
+        "upgrade": "Analyst upgrade", "upgraded": "Analyst upgrade",
+        "raises guidance": "Guidance raised", "raises forecast": "Forecast raised",
+        "record": "Record performance", "all-time high": "All-time high",
+        "fda approv": "FDA approval", "approved": "Regulatory approval",
+        "trial success": "Clinical success", "positive data": "Positive trial",
+        "partnership": "New partnership", "contract": "New contract",
+        "buyback": "Share buyback", "dividend increase": "Dividend raised",
+        "strong earnings": "Strong earnings", "profit rises": "Profit up",
+        "revenue beat": "Revenue beat", "exceeds": "Beat expectations",
+        "wins": "Contract win", "deal": "New deal signed",
+    }
+    bearish = {
+        "misses": "Earnings miss", "miss earnings": "Earnings miss",
+        "drops": "Price decline", "falls": "Price decline",
+        "plunges": "Sharp decline", "tumbles": "Sharp decline", "slumps": "Decline",
+        "downgrade": "Analyst downgrade", "downgraded": "Analyst downgrade",
+        "cuts guidance": "Guidance cut", "lowers forecast": "Forecast lowered",
+        "recall": "Product recall", "lawsuit": "Legal issue",
+        "investigation": "Under investigation", "probe": "Regulatory probe",
+        "layoffs": "Job cuts", "job cuts": "Job cuts",
+        "bankruptcy": "Bankruptcy risk",
+        "fda rejects": "FDA rejection", "rejected": "Rejection",
+        "warning": "Warning issued", "loss widens": "Loss widening",
+        "tariff": "Tariff impact", "sanction": "Sanctions",
+        "weak earnings": "Weak earnings", "revenue miss": "Revenue miss",
+    }
+    for kw, reason in bullish.items():
+        if kw in t:
+            return "bullish", reason
+    for kw, reason in bearish.items():
+        if kw in t:
+            return "bearish", reason
+    return "neutral", "General news"
+
+def match_to_tickers(headline, tickers):
+    NAMES = {
+        "AAPL": ["apple", "iphone", "ipad", "tim cook"],
+        "MSFT": ["microsoft", "azure", "satya nadella"],
+        "NVDA": ["nvidia", "jensen huang", "h100", "blackwell"],
+        "AMZN": ["amazon", "aws", "andy jassy"],
+        "GOOGL": ["google", "alphabet", "youtube", "gemini"],
+        "META": ["meta", "facebook", "instagram", "zuckerberg"],
+        "BRK-B": ["berkshire", "warren buffett"],
+        "LLY": ["eli lilly", "lilly", "mounjaro", "tirzepatide"],
+        "JPM": ["jpmorgan", "jp morgan", "jamie dimon"],
+        "AVGO": ["broadcom"],
+        "TSLA": ["tesla", "elon musk", "cybertruck"],
+        "AMD": ["amd", "lisa su", "radeon"],
+        "INTC": ["intel"],
+        "CRM": ["salesforce"],
+    }
+    t = headline.lower()
+    matched = []
+    for ticker in tickers:
+        if ticker.lower() in t:
+            matched.append(ticker)
+            continue
+        for name in NAMES.get(ticker, []):
+            if name in t:
+                matched.append(ticker)
+                break
+    return matched
+
+CATALYST_TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "LLY", "JPM", "AVGO", "TSLA"]
+
+macro_headlines = fetch_macro_headlines()
+
+catalyst_tab, macro_tab = st.tabs(["🎯 Stock Catalysts", "📡 Market Headlines (CNBC + MarketWatch)"])
+
+with catalyst_tab:
+    cat_cols = st.columns(2)
+    for idx, ticker in enumerate(CATALYST_TICKERS):
+        stock_info = active_data.get(ticker, {})
+        pct = stock_info.get("pct_change", 0)
+        price = stock_info.get("price", 0)
+        pm_tag = " 🏷️PM" if stock_info.get("is_premarket") else ""
+        sign = "+" if pct >= 0 else ""
+        border_c = "#276749" if pct >= 0 else "#9b2c2c"
+        pct_color = "#276749" if pct >= 0 else "#9b2c2c"
+
+        stock_news_raw = fetch_stock_news(ticker)
+        macro_matches = [h for h in macro_headlines if match_to_tickers(h["title"], [ticker])]
+
+        all_news = []
+        for n in stock_news_raw[:3]:
+            s, r = score_headline(n.get("title", ""))
+            all_news.append({"title": n.get("title", ""), "source": n.get("publisher", "Yahoo"), "sentiment": s, "reason": r})
+        for n in macro_matches[:2]:
+            s, r = score_headline(n.get("title", ""))
+            all_news.append({"title": n.get("title", ""), "source": n.get("source", ""), "sentiment": s, "reason": r})
+
+        with cat_cols[idx % 2]:
+            header_html = (
+                f'<div style="background:white;border-radius:10px;padding:12px;margin-bottom:8px;'
+                f'box-shadow:0 2px 6px rgba(0,0,0,0.06);border-top:3px solid {border_c};">'
+                f'<div style="display:flex;justify-content:space-between;margin-bottom:6px;">'
+                f'<b style="font-size:1rem;color:#2d3748;">{ticker}{pm_tag}</b>'
+                f'<span style="color:{pct_color};font-weight:700;">${price:.2f} ({sign}{pct:.2f}%)</span>'
+                f'</div>'
+            )
+            news_html = ""
+            if all_news:
+                for n in all_news[:3]:
+                    dot = "🟢" if n["sentiment"] == "bullish" else "🔴" if n["sentiment"] == "bearish" else "⚪"
+                    short = n["title"][:85] + "..." if len(n["title"]) > 85 else n["title"]
+                    news_html += (
+                        f'<div style="padding:4px 0;border-bottom:1px solid #f7fafc;">'
+                        f'{dot} <small style="color:#718096;">[{n["source"]}]</small> '
+                        f'<span style="font-size:0.8rem;color:#2d3748;">{short}</span><br/>'
+                        f'<small style="color:#a0aec0;font-style:italic;">{n["reason"]}</small>'
+                        f'</div>'
+                    )
+            else:
+                news_html = '<small style="color:#a0aec0;">No recent news</small>'
+
+            st.markdown(header_html + news_html + '</div>', unsafe_allow_html=True)
+
+with macro_tab:
+    st.markdown("**Latest headlines from CNBC & MarketWatch:**")
+    for h in macro_headlines[:25]:
+        s, r = score_headline(h["title"])
+        dot = "🟢" if s == "bullish" else "🔴" if s == "bearish" else "⚪"
+        matched = match_to_tickers(h["title"], CATALYST_TICKERS)
+        tags = " ".join([
+            f'<span style="background:#ebf4ff;color:#2b6cb0;padding:1px 5px;border-radius:4px;font-size:0.7rem;font-weight:600;">{t}</span>'
+            for t in matched
+        ])
+        st.markdown(
+            f'<div style="padding:5px 0;border-bottom:1px solid #f0f4f8;">'
+            f'{dot} <small style="color:#718096;font-weight:600;">[{h["source"]}]</small> '
+            f'<span style="font-size:0.83rem;color:#2d3748;">{h["title"]}</span> {tags}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+# ============================================================
+
 # --- Sector Heatmap (clickable) ---
 st.subheader("Sector Performance (click to explore)")
 stocks_only = {k: v for k, v in active_data.items() if k not in INDICES and k not in MACRO_TICKERS}
