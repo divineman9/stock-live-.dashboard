@@ -1046,57 +1046,64 @@ def fetch_extended_hours_data(mode):
 
 if view_mode in ("Pre-Market", "Post-Market"):
     st.markdown("---")
-    mode_icon = "🌅" if view_mode == "Pre-Market" else "🌙"
-    st.subheader(f"{mode_icon} {view_mode} Movers (All Sectors)")
 
-    with st.spinner(f"Loading {view_mode.lower()} data..."):
-        ext_data = fetch_extended_hours_data(view_mode)
-
-    if ext_data:
-        # Sector filter
-        ext_sectors = sorted(set(s["sector"] for s in ext_data))
-        ext_sector_filter = st.selectbox("Filter by Sector", ["All"] + ext_sectors, key="ext_sector_filter")
-
-        if ext_sector_filter != "All":
-            ext_data = [s for s in ext_data if s["sector"] == ext_sector_filter]
-
-        ext_up = sorted([s for s in ext_data if s["pct_change"] > 0.05], key=lambda x: x["pct_change"], reverse=True)
-        ext_down = sorted([s for s in ext_data if s["pct_change"] < -0.05], key=lambda x: x["pct_change"])
-
-        ext_col1, ext_col2 = st.columns(2)
-        with ext_col1:
-            st.markdown(f"**▲ {view_mode} Gainers**")
-            if ext_up:
-                for s in ext_up[:15]:
-                    st.markdown(
-                        f'<div class="stock-row">'
-                        f'<span><b>{s["ticker"]}</b> <small style="color:#718096">{s["sector"]}</small></span>'
-                        f'<span><b>${s["current_price"]:.2f}</b> &nbsp;'
-                        f'<span class="gain"><b>+${s["change"]:.2f} (+{s["pct_change"]:.2f}%)</b></span>'
-                        f'<br/><small style="color:#a0aec0">{s["label"]}: ${s["ref_price"]:.2f}</small></span>'
-                        f'</div>',
-                        unsafe_allow_html=True,
-                    )
-            else:
-                st.caption("No gainers")
-
-        with ext_col2:
-            st.markdown(f"**▼ {view_mode} Losers**")
-            if ext_down:
-                for s in ext_down[:15]:
-                    st.markdown(
-                        f'<div class="stock-row">'
-                        f'<span><b>{s["ticker"]}</b> <small style="color:#718096">{s["sector"]}</small></span>'
-                        f'<span><b>${s["current_price"]:.2f}</b> &nbsp;'
-                        f'<span class="loss"><b>${s["change"]:.2f} ({s["pct_change"]:.2f}%)</b></span>'
-                        f'<br/><small style="color:#a0aec0">{s["label"]}: ${s["ref_price"]:.2f}</small></span>'
-                        f'</div>',
-                        unsafe_allow_html=True,
-                    )
-            else:
-                st.caption("No losers")
+    # Validate mode vs current phase
+    if view_mode == "Pre-Market" and phase not in ("premarket", "transition"):
+        st.info("🌅 Pre-Market data is only available from 4:00 AM to 9:30 AM ET. Switch to 'Live' or 'Post-Market' mode.")
+    elif view_mode == "Post-Market" and phase not in ("afterhours", "closed"):
+        st.info("🌙 Post-Market data is available after 4:00 PM ET. Currently showing live market data in 'Live' mode.")
     else:
-        st.info(f"No {view_mode.lower()} data available right now.")
+        mode_icon = "🌅" if view_mode == "Pre-Market" else "🌙"
+        st.subheader(f"{mode_icon} {view_mode} Movers (All Sectors)")
+
+        with st.spinner(f"Loading {view_mode.lower()} data..."):
+            ext_data = fetch_extended_hours_data(view_mode)
+
+        if ext_data:
+            # Sector filter
+            ext_sectors = sorted(set(s["sector"] for s in ext_data))
+            ext_sector_filter = st.selectbox("Filter by Sector", ["All"] + ext_sectors, key="ext_sector_filter")
+
+            if ext_sector_filter != "All":
+                ext_data = [s for s in ext_data if s["sector"] == ext_sector_filter]
+
+            ext_up = sorted([s for s in ext_data if s["pct_change"] > 0.05], key=lambda x: x["pct_change"], reverse=True)
+            ext_down = sorted([s for s in ext_data if s["pct_change"] < -0.05], key=lambda x: x["pct_change"])
+
+            ext_col1, ext_col2 = st.columns(2)
+            with ext_col1:
+                st.markdown(f"**▲ {view_mode} Gainers**")
+                if ext_up:
+                    for s in ext_up[:15]:
+                        st.markdown(
+                            f'<div class="stock-row">'
+                            f'<span><b>{s["ticker"]}</b> <small style="color:#718096">{s["sector"]}</small></span>'
+                            f'<span><b>${s["current_price"]:.2f}</b> &nbsp;'
+                            f'<span class="gain"><b>+${s["change"]:.2f} (+{s["pct_change"]:.2f}%)</b></span>'
+                            f'<br/><small style="color:#a0aec0">{s["label"]}: ${s["ref_price"]:.2f}</small></span>'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.caption("No gainers")
+
+            with ext_col2:
+                st.markdown(f"**▼ {view_mode} Losers**")
+                if ext_down:
+                    for s in ext_down[:15]:
+                        st.markdown(
+                            f'<div class="stock-row">'
+                            f'<span><b>{s["ticker"]}</b> <small style="color:#718096">{s["sector"]}</small></span>'
+                            f'<span><b>${s["current_price"]:.2f}</b> &nbsp;'
+                            f'<span class="loss"><b>${s["change"]:.2f} ({s["pct_change"]:.2f}%)</b></span>'
+                            f'<br/><small style="color:#a0aec0">{s["label"]}: ${s["ref_price"]:.2f}</small></span>'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.caption("No losers")
+        else:
+            st.info(f"No {view_mode.lower()} data available right now.")
 
 # --- Auto Refresh ---
 st.markdown("---")
