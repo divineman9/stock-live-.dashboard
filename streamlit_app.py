@@ -1465,6 +1465,134 @@ with st.expander("📅 Earnings This Week (Tracked Stocks)"):
 
 # ============================================================
 
+# --- Economic Calendar (Forex Factory) ---
+st.subheader("📅 Economic Calendar")
+st.caption("High 🔴 and Medium 🟡 impact USD events only — powered by Forex Factory")
+
+@st.cache_data(ttl=1800)  # Cache 30 min
+def fetch_ff_calendar():
+    """Fetch Forex Factory calendar for this week and next week."""
+    HEADERS_FF = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json",
+    }
+    urls = [
+        "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
+        "https://nfs.faireconomy.media/ff_calendar_nextweek.json",
+    ]
+    all_events = []
+    for url in urls:
+        try:
+            r = requests.get(url, headers=HEADERS_FF, timeout=10)
+            if r.status_code == 200:
+                all_events.extend(r.json())
+        except:
+            continue
+    return all_events
+
+ff_events = fetch_ff_calendar()
+
+if ff_events:
+    from datetime import timedelta as td
+    import re
+
+    # Filter: only High (red) and Medium (yellow) USD events
+    filtered = [
+        e for e in ff_events
+        if e.get("impact") in ("High", "Medium")
+        and e.get("country") == "USD"
+    ]
+
+    if not filtered:
+        st.info("No high/medium impact USD events found.")
+    else:
+        # Parse dates and group by week
+        def parse_ff_date(date_str):
+            try:
+                # Format: "2026-05-20T14:00:00-04:00"
+                return datetime.fromisoformat(date_str).astimezone(ET)
+            except:
+                return None
+
+        events_parsed = []
+        for e in filtered:
+            dt_obj = parse_ff_date(e.get("date", ""))
+            if dt_obj:
+                events_parsed.append({
+                    "dt": dt_obj,
+                    "impact": e.get("impact", ""),
+                    "title": e.get("title", ""),
+                    "forecast": e.get("forecast", "") or "--",
+                    "actual": e.get("actual", "") or "--",
+                    "previous": e.get("previous", "") or "--",
+                    "currency": e.get("country", "USD"),
+                })
+
+        # Sort by date
+        events_parsed.sort(key=lambda x: x["dt"])
+
+        # Group by week (Mon-Fri)
+        def get_week_label(dt_obj):
+            monday = dt_obj - td(days=dt_obj.weekday())
+            friday = monday + td(days=4)
+            return f"Week of {monday.strftime('%b %d')} – {friday.strftime('%b %d, %Y')}"
+
+        weeks = {}
+        for e in events_parsed:
+            wk = get_week_label(e["dt"])
+            weeks.setdefault(wk, []).append(e)
+
+        now_et = datetime.now(ET)
+
+        for week_label, week_events in weeks.items():
+            with st.expander(f"📆 {week_label}", expanded=(list(weeks.keys()).index(week_label) == 0)):
+                for e in week_events:
+                    impact = e["impact"]
+                    is_past = e["dt"] < now_et
+                    is_today = e["dt"].date() == now_et.date()
+
+                    # Colors
+                    if impact == "High":
+                        dot = "🔴"
+                        border_color = "#9b2c2c"
+                        bg_color = "#fff5f5"
+                    else:
+                        dot = "🟡"
+                        border_color = "#b7791f"
+                        bg_color = "#fffff0"
+
+                    # Time display
+                    time_str = e["dt"].strftime("%a %b %d  %I:%M %p ET")
+                    today_badge = ' <span style="background:#9b2c2c;color:white;padding:1px 6px;border-radius:4px;font-size:0.7rem;font-weight:700;">TODAY</span>' if is_today else ""
+                    past_style = "opacity:0.55;" if is_past and not is_today else ""
+
+                    # Actual vs Forecast coloring
+                    actual_html = "--"
+                    if e["actual"] != "--":
+                        actual_html = f'<b style="color:#276749;">{e["actual"]}</b>'
+
+                    st.markdown(
+                        f'<div style="border-left:3px solid {border_color};background:{bg_color};'
+                        f'border-radius:6px;padding:8px 12px;margin-bottom:6px;{past_style}">'
+                        f'<div style="display:flex;justify-content:space-between;align-items:center;">'
+                        f'<div>'
+                        f'{dot} <b style="color:#2d3748;">{e["title"]}</b>{today_badge}<br/>'
+                        f'<small style="color:#718096;">{time_str}</small>'
+                        f'</div>'
+                        f'<div style="text-align:right;font-size:0.82rem;">'
+                        f'<span style="color:#718096;">Forecast: </span><b>{e["forecast"]}</b> &nbsp;'
+                        f'<span style="color:#718096;">Actual: </span>{actual_html} &nbsp;'
+                        f'<span style="color:#718096;">Prev: </span>{e["previous"]}'
+                        f'</div>'
+                        f'</div>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+else:
+    st.info("Economic calendar data unavailable. Try again later.")
+
+# ============================================================
+
 # --- Sector Heatmap (clickable) ---
 st.subheader("Sector Performance (click to explore)")
 stocks_only = {k: v for k, v in active_data.items() if k not in INDICES and k not in MACRO_TICKERS}
