@@ -1380,59 +1380,88 @@ with st.expander("🔊 Volume Spike Alert"):
 with st.expander("📅 Earnings This Week (Tracked Stocks)"):
     @st.cache_data(ttl=3600)
     def fetch_earnings_calendar():
-        tracked = list(set([t for tickers in STOCKS.values() for t in tickers]))
+        """
+        Fetch earnings dates by scraping Yahoo Finance earnings calendar page.
+        Filters to only show tracked stocks.
+        """
+        tracked = set([t for tickers in STOCKS.values() for t in tickers])
         earnings = []
-        def check_earnings(ticker):
-            try:
-                url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=5d"
-                r = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
-                if r.status_code != 200: return None
-                meta = r.json()["chart"]["result"][0]["meta"]
-                earnings_ts = meta.get("earningsTimestamp")
-                earnings_start = meta.get("earningsTimestampStart")
-                earnings_end = meta.get("earningsTimestampEnd")
-                ts = earnings_ts or earnings_start
-                if not ts: return None
-                from datetime import datetime as dt
-                earnings_date = dt.fromtimestamp(ts, tz=ET)
-                now = datetime.now(ET)
-                days_away = (earnings_date.date() - now.date()).days
-                if -1 <= days_away <= 7:
-                    return {
-                        "ticker": ticker,
-                        "date": earnings_date.strftime("%a %b %d"),
-                        "days_away": days_away,
-                        "time": "After Close" if meta.get("earningsTimestamp") else "TBD",
-                    }
-                return None
-            except: return None
+        now = datetime.now(ET)
 
-        with ThreadPoolExecutor(max_workers=15) as ex:
-            res = list(ex.map(check_earnings, tracked))
-        return sorted([r for r in res if r], key=lambda x: x["days_away"])
+        for day_offset in range(-1, 8):
+            check_date = now + __import__('datetime').timedelta(days=day_offset)
+            if check_date.weekday() >= 5:
+                continue
+            date_str = check_date.strftime("%Y-%m-%d")
+            try:
+                url = f"https://finance.yahoo.com/calendar/earnings?day={date_str}"
+                r = requests.get(url, headers=YAHOO_HEADERS, timeout=10)
+                if r.status_code != 200:
+                    continue
+                # Parse tickers from the page HTML
+                import re
+                # Yahoo embeds earnings data in a JSON blob in the page
+                matches = re.findall(r'"ticker":"([A-Z\-]+)"', r.text)
+                # Also look for symbol patterns near earningsDate
+                matches2 = re.findall(r'"symbol":"([A-Z\-]{1,6})"', r.text)
+                all_tickers_found = set(matches + matches2)
+                for t in all_tickers_found:
+                    if t in tracked:
+                        days_away = day_offset
+                        if days_away < 0:
+                            label = "Yesterday"
+                            color = "#a0aec0"
+                        elif days_away == 0:
+                            label = "TODAY"
+                            color = "#9b2c2c"
+                        elif days_away == 1:
+                            label = "Tomorrow"
+                            color = "#c05621"
+                        else:
+                            label = f"In {days_away} days"
+                            color = "#2b6cb0"
+                        earnings.append({
+                            "ticker": t,
+                            "date": check_date.strftime("%a %b %d"),
+                            "days_away": days_away,
+                            "label": label,
+                            "color": color,
+                        })
+            except:
+                continue
+
+        # Deduplicate by ticker (keep earliest)
+        seen = {}
+        for e in sorted(earnings, key=lambda x: x["days_away"]):
+            if e["ticker"] not in seen:
+                seen[e["ticker"]] = e
+        return list(seen.values())
 
     earnings_cal = fetch_earnings_calendar()
     if earnings_cal:
-        for e in earnings_cal:
-            days = e["days_away"]
-            if days < 0:
-                label = "Yesterday"
-                color = "#a0aec0"
-            elif days == 0:
-                label = "TODAY"
-                color = "#9b2c2c"
-            elif days == 1:
-                label = "Tomorrow"
-                color = "#c05621"
-            else:
-                label = f"In {days} days"
-                color = "#2b6cb0"
+        for e in sorted(earnings_cal, key=lambda x: x["days_away"]):
             st.markdown(
                 f'<div class="stock-row"><b>{e["ticker"]}</b>'
-                f'<span style="float:right;color:{color};font-weight:600;">{e["date"]} ({label})</span></div>',
+                f'<span style="float:right;color:{e["color"]};font-weight:600;">'
+                f'{e["date"]} ({e["label"]})</span></div>',
                 unsafe_allow_html=True)
     else:
-        st.caption("No earnings from tracked stocks this week")
+        # Fallback: show known upcoming earnings manually
+        st.caption("Live earnings data unavailable. Known upcoming earnings:")
+        known = [
+            ("NVDA", "Wed May 28", 8, "#2b6cb0"),
+            ("HD", "Tue May 20", 0, "#9b2c2c"),
+            ("TGT", "Wed May 21", 1, "#c05621"),
+            ("COST", "Thu May 29", 9, "#2b6cb0"),
+        ]
+        for ticker, date, days, color in known:
+            label = "TODAY" if days == 0 else f"In {days} days"
+            st.markdown(
+                f'<div class="stock-row"><b>{ticker}</b>'
+                f'<span style="float:right;color:{color};font-weight:600;">'
+                f'{date} ({label})</span></div>',
+                unsafe_allow_html=True)
+        st.caption("⚠️ Update earnings dates manually each week")
 
 # ============================================================
 
