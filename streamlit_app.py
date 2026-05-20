@@ -223,17 +223,31 @@ def generate_insights(data):
 
     # --- VIX insights (fear gauge) ---
     if vix:
-        if vix["pct_change"] > 10:
-            insights.append(f"🚨 VIX spiking +{vix['pct_change']:.1f}% — fear rising sharply, expect volatility")
-        elif vix["pct_change"] > 5:
-            insights.append(f"⚠️ VIX up +{vix['pct_change']:.1f}% — market anxiety increasing")
-        elif vix["pct_change"] < -5:
-            insights.append(f"😌 VIX down {vix['pct_change']:.1f}% — fear fading, risk-on sentiment")
-        # VIX level context
-        if vix["price"] > 30:
-            insights.append(f"🔴 VIX at {vix['price']:.1f} — extreme fear territory")
-        elif vix["price"] > 20:
-            insights.append(f"🟡 VIX at {vix['price']:.1f} — elevated caution")
+        vix_level = vix["price"]
+        vix_change = vix["pct_change"]
+        
+        if vix_change > 10:
+            insights.append(f"🚨 VIX spiking +{vix_change:.1f}% — fear rising sharply, expect volatility")
+        elif vix_change > 5:
+            insights.append(f"⚠️ VIX up +{vix_change:.1f}% — market anxiety increasing")
+        elif vix_change < -5:
+            insights.append(f"😌 VIX down {vix_change:.1f}% — fear fading, risk-on sentiment")
+        
+        # VIX level context with market breadth
+        if vix_level > 30:
+            if bear_pct >= 60:
+                insights.append(f"🔴 VIX at {vix_level:.1f} + {bear_pct}% stocks red — extreme fear with broad selling")
+            else:
+                insights.append(f"🔴 VIX at {vix_level:.1f} — extreme fear territory, panic levels")
+        elif vix_level > 25:
+            insights.append(f"🟠 VIX at {vix_level:.1f} — high fear, defensive positioning")
+        elif vix_level > 20:
+            insights.append(f"🟡 VIX at {vix_level:.1f} — elevated caution")
+        elif vix_level < 12:
+            if bull_pct >= 60:
+                insights.append(f"🔵 VIX at {vix_level:.1f} + {bull_pct}% stocks green — complacency with strong rally")
+            else:
+                insights.append(f"🔵 VIX at {vix_level:.1f} — extreme complacency, volatility spike risk")
 
     # --- Treasury 10Y insights ---
     if tnx:
@@ -899,8 +913,8 @@ if oi_data:
     </div>
     """, unsafe_allow_html=True)
 
-# --- Macro Indicators: VIX, 10Y Yield, XLF ---
-st.subheader("Macro Indicators")
+# --- Comprehensive Fear Index Analysis ---
+st.subheader("📊 Fear Index (VIX) Analysis")
 macro_cols = st.columns(3)
 
 vix_data = active_data.get("^VIX")
@@ -939,6 +953,126 @@ with macro_cols[2]:
         )
     else:
         st.metric(label="XLF", value="--")
+
+# --- Comprehensive Fear Index Analysis ---
+if vix_data:
+    spy_data = active_data.get("SPY")
+    vix_level = vix_data["price"]
+    vix_change = vix_data["pct_change"]
+    
+    # Determine fear level
+    if vix_level > 30:
+        fear_level = "🔴 EXTREME FEAR"
+        fear_desc = "Panic selling, capitulation likely. Extreme volatility expected."
+        fear_color = "#9b2c2c"
+    elif vix_level > 25:
+        fear_level = "🟠 HIGH FEAR"
+        fear_desc = "Significant market stress. High volatility, defensive positioning."
+        fear_color = "#dd6b20"
+    elif vix_level > 20:
+        fear_level = "🟡 ELEVATED FEAR"
+        fear_desc = "Elevated caution. Market nervous, risk-off sentiment."
+        fear_color = "#d69e2e"
+    elif vix_level > 15:
+        fear_level = "🟢 MODERATE FEAR"
+        fear_desc = "Normal market anxiety. Healthy skepticism, balanced risk."
+        fear_color = "#38a169"
+    else:
+        fear_level = "🔵 LOW FEAR / COMPLACENCY"
+        fear_desc = "Market complacency. Low volatility, risk-on environment."
+        fear_color = "#3182ce"
+    
+    # VIX-SPY relationship analysis
+    vix_spy_analysis = ""
+    if spy_data:
+        spy_change = spy_data["pct_change"]
+        
+        # Classic VIX-SPY inverse relationship
+        if vix_change > 5 and spy_change < -0.5:
+            vix_spy_analysis = f"📉 **Classic risk-off move**: VIX spiking +{vix_change:.1f}% while SPY down {spy_change:.1f}%. Fear rising as market sells off."
+        elif vix_change < -3 and spy_change > 0.5:
+            vix_spy_analysis = f"📈 **Strong risk-on signal**: VIX dropping {vix_change:.1f}% while SPY up +{spy_change:.1f}%. Fear fading as market rallies."
+        elif vix_change > 2 and spy_change > 0.5:
+            vix_spy_analysis = f"⚠️ **Divergence warning**: VIX rising +{vix_change:.1f}% despite SPY up +{spy_change:.1f}%. Rally lacks conviction, fear persists."
+        elif vix_change < -2 and spy_change < -0.5:
+            vix_spy_analysis = f"⚠️ **Divergence warning**: VIX dropping {vix_change:.1f}% despite SPY down {spy_change:.1f}%. Selloff may be orderly, not panic-driven."
+    
+    # VIX trend analysis
+    vix_trend = ""
+    if vix_change > 10:
+        vix_trend = f"🚨 **VIX spiking sharply**: +{vix_change:.1f}% indicates sudden fear surge. Expect increased volatility and potential panic moves."
+    elif vix_change > 5:
+        vix_trend = f"⚠️ **VIX rising**: +{vix_change:.1f}% shows growing anxiety. Market becoming defensive."
+    elif vix_change < -5:
+        vix_trend = f"😌 **VIX falling**: {vix_change:.1f}% indicates fear receding. Risk appetite improving."
+    
+    # Market context analysis
+    market_context = ""
+    if bull_pct >= 60 and vix_level < 18:
+        market_context = f"✅ **Healthy bull market**: {bull_pct}% stocks green with low VIX ({vix_level:.1f}). Strong breadth, low fear = sustainable rally."
+    elif bear_pct >= 60 and vix_level > 22:
+        market_context = f"🔴 **Broad selloff with high fear**: {bear_pct}% stocks red, VIX elevated at {vix_level:.1f}. Genuine market stress, not just isolated selling."
+    elif bull_pct >= 60 and vix_level > 22:
+        market_context = f"⚠️ **Contradiction**: {bull_pct}% stocks green but VIX high ({vix_level:.1f}). Rally may be fragile, fear persists despite gains."
+    elif bear_pct >= 60 and vix_level < 18:
+        market_context = f"⚠️ **Contradiction**: {bear_pct}% stocks red but VIX low ({vix_level:.1f}). Selloff may be orderly, not panic-driven."
+    
+    # Historical context
+    historical_context = ""
+    if vix_level > 30:
+        historical_context = "📜 **Historical context**: VIX >30 indicates extreme fear levels seen during major market crises (2020 COVID crash, 2008 financial crisis)."
+    elif vix_level > 25:
+        historical_context = "📜 **Historical context**: VIX 25-30 range seen during significant corrections and geopolitical tensions."
+    elif vix_level < 12:
+        historical_context = "📜 **Historical context**: VIX <12 indicates extreme complacency, often precedes volatility spikes."
+    
+    # Trading implications
+    trading_implications = ""
+    if vix_level > 25:
+        trading_implications = "💡 **Trading implications**: High VIX favors volatility strategies (long straddles/strangles), defensive sectors (utilities, consumer staples), and hedging."
+    elif vix_level < 15:
+        trading_implications = "💡 **Trading implications**: Low VIX favors trend-following, momentum strategies, growth/tech stocks, and reduced hedging costs."
+    
+    # Display comprehensive fear analysis
+    st.markdown(f"""
+    <div style="background:white;border-left:4px solid {fear_color};border-radius:8px;padding:16px 20px;margin-top:12px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <div style="font-weight:800;color:{fear_color};font-size:1.1rem;margin-bottom:8px;">{fear_level}</div>
+        <div style="color:#4a5568;font-size:0.9rem;line-height:1.6;margin-bottom:12px;">{fear_desc}</div>
+        
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+            <div style="background:#f7fafc;border-radius:6px;padding:10px;">
+                <div style="font-weight:700;color:#2d3748;font-size:0.85rem;margin-bottom:4px;">VIX Level Analysis</div>
+                <div style="color:#4a5568;font-size:0.8rem;">
+                    • <b>Current:</b> {vix_level:.1f}<br/>
+                    • <b>Change:</b> {vix_change:+.1f}%<br/>
+                    • <b>Range:</b> {vix_data.get('prev_close', 0):.1f} → {vix_level:.1f}
+                </div>
+            </div>
+            
+            <div style="background:#f7fafc;border-radius:6px;padding:10px;">
+                <div style="font-weight:700;color:#2d3748;font-size:0.85rem;margin-bottom:4px;">Market Context</div>
+                <div style="color:#4a5568;font-size:0.8rem;">
+                    • <b>Bulls:</b> {bull_pct}%<br/>
+                    • <b>Bears:</b> {bear_pct}%<br/>
+                    • <b>SPY:</b> {spy_data['pct_change']:+.1f}% if spy_data else '--'
+                </div>
+            </div>
+        </div>
+        
+        <div style="margin-top:12px;">
+            {vix_spy_analysis if vix_spy_analysis else ''}
+            {vix_trend if vix_trend else ''}
+            {market_context if market_context else ''}
+            {historical_context if historical_context else ''}
+            {trading_implications if trading_implications else ''}
+        </div>
+        
+        <div style="margin-top:12px;font-size:0.75rem;color:#a0aec0;border-top:1px solid #e2e8f0;padding-top:8px;">
+            <b>VIX Interpretation Guide:</b><br/>
+            • <b>&lt;12:</b> Complacency | <b>12-18:</b> Normal | <b>18-25:</b> Elevated | <b>25-30:</b> High | <b>&gt;30:</b> Extreme
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # --- Insights ---
 st.subheader("🧠 Market Insights")
