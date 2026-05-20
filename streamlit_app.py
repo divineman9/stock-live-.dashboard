@@ -1005,24 +1005,25 @@ def fetch_extended_hours_data(mode):
             valid = [c for c in closes if c is not None]
             latest = valid[-1] if valid else None
 
-            if not latest or not regular_close:
+            if not latest:
                 return None
 
             if mode == "Post-Market":
-                # Compare latest (after-hours) vs regular close
+                # After-hours: compare latest candle vs today's 4PM close
+                if not regular_close or regular_close == 0:
+                    return None
+                change = latest - regular_close
+                pct = (change / regular_close) * 100
                 ref_price = regular_close
-                change = latest - ref_price
-                pct = (change / ref_price) * 100 if ref_price != 0 else 0
                 label = "Close"
             else:
-                # Pre-Market: compare latest vs previous close
+                # Pre-Market: compare latest candle vs yesterday's close
                 ref_price = prev_close if prev_close else regular_close
+                if not ref_price or ref_price == 0:
+                    return None
                 change = latest - ref_price
-                pct = (change / ref_price) * 100 if ref_price != 0 else 0
+                pct = (change / ref_price) * 100
                 label = "Prev Close"
-
-            if abs(pct) < 0.01:
-                return None
 
             primary_sector = "Index" if ticker in INDICES else TICKER_SECTORS.get(ticker, ["Unknown"])[0]
 
