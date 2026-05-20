@@ -1071,6 +1071,371 @@ insights = generate_insights(active_data)
 for insight in insights:
     st.markdown(f'<div class="insight-box">{insight}</div>', unsafe_allow_html=True)
 
+# ============================================================
+# --- MARKET INTELLIGENCE (8 Features) ---
+# ============================================================
+st.subheader("🔬 Market Intelligence")
+
+stocks_for_intel = {k: v for k, v in active_data.items() if k not in INDICES and k not in MACRO_TICKERS}
+spy_intel = active_data.get("SPY")
+
+# --- Helper: sector averages ---
+intel_sector_avg = {}
+for info in stocks_for_intel.values():
+    sec = info.get("sector")
+    if sec and sec not in ("Index", "Core"):
+        intel_sector_avg.setdefault(sec, []).append(info["pct_change"])
+intel_sector_summary = {s: round(sum(c)/len(c), 2) for s, c in intel_sector_avg.items()}
+sorted_intel_sectors = sorted(intel_sector_summary.items(), key=lambda x: x[1], reverse=True)
+
+# ---- 1. MARKET REGIME ----
+with st.expander("📊 Market Regime", expanded=True):
+    vix_regime = data.get("^VIX")
+    vix_lvl = vix_regime["price"] if vix_regime else 20
+    spy_pct = spy_intel["pct_change"] if spy_intel else 0
+    green_sectors = sum(1 for v in intel_sector_summary.values() if v > 0)
+    total_sectors = len(intel_sector_summary)
+
+    if spy_pct > 0.3 and vix_lvl < 18 and bull_pct >= 55:
+        regime = "🟢 RISK-ON BULL"
+        regime_color = "#276749"
+        regime_desc = f"SPY +{spy_pct:.1f}%, VIX low ({vix_lvl:.1f}), {bull_pct}% stocks green, {green_sectors}/{total_sectors} sectors up. Strong bull conditions — momentum favors longs."
+    elif spy_pct < -0.3 and vix_lvl > 20 and bear_pct >= 55:
+        regime = "🔴 RISK-OFF BEAR"
+        regime_color = "#9b2c2c"
+        regime_desc = f"SPY {spy_pct:.1f}%, VIX elevated ({vix_lvl:.1f}), {bear_pct}% stocks red. Bear conditions — defensive positioning, reduce exposure."
+    elif vix_lvl > 25:
+        regime = "🟠 HIGH VOLATILITY / FEAR"
+        regime_color = "#c05621"
+        regime_desc = f"VIX at {vix_lvl:.1f} — elevated fear. Market unstable, expect sharp moves in both directions. Reduce size."
+    elif abs(spy_pct) < 0.2 and vix_lvl < 16:
+        regime = "🔵 CONSOLIDATION / CHOP"
+        regime_color = "#3182ce"
+        regime_desc = f"SPY flat ({spy_pct:+.1f}%), VIX low ({vix_lvl:.1f}). Market digesting recent moves. Range-bound, avoid chasing."
+    elif spy_pct > 0 and bear_pct > 50:
+        regime = "🟡 NARROW RALLY"
+        regime_color = "#b7791f"
+        regime_desc = f"SPY +{spy_pct:.1f}% but only {bull_pct}% stocks green. Mega-cap driven, not broad. Fragile — don't chase."
+    else:
+        regime = "⚪ MIXED / TRANSITIONING"
+        regime_color = "#718096"
+        regime_desc = f"SPY {spy_pct:+.1f}%, VIX {vix_lvl:.1f}. No clear regime. Wait for confirmation before taking directional bets."
+
+    st.markdown(
+        f'<div style="background:white;border-left:4px solid {regime_color};border-radius:8px;padding:12px 16px;">'
+        f'<div style="font-weight:800;color:{regime_color};font-size:1rem;">{regime}</div>'
+        f'<div style="color:#4a5568;font-size:0.85rem;margin-top:4px;">{regime_desc}</div>'
+        f'</div>', unsafe_allow_html=True)
+
+# ---- 2. SECTOR ROTATION ----
+with st.expander("🔄 Sector Rotation Detector"):
+    if len(sorted_intel_sectors) >= 2:
+        top_sectors = sorted_intel_sectors[:3]
+        bot_sectors = sorted_intel_sectors[-3:]
+        inflow = [s for s, v in top_sectors if v > 0.3]
+        outflow = [s for s, v in bot_sectors if v < -0.3]
+
+        if inflow and outflow:
+            in_str = ", ".join([f"{s} ({intel_sector_summary[s]:+.1f}%)" for s in inflow])
+            out_str = ", ".join([f"{s} ({intel_sector_summary[s]:+.1f}%)" for s in outflow])
+            st.markdown(f"🔄 **Rotation detected:** Money moving **OUT of** {out_str} → **INTO** {in_str}")
+
+            # Classify rotation type
+            if any(s in inflow for s in ["Energy", "Oil", "Gold"]) and any(s in outflow for s in ["Tech", "Semis"]):
+                st.markdown("📌 **Risk-off rotation** — defensive/commodity sectors gaining, growth selling off. Market cautious.")
+            elif any(s in inflow for s in ["Tech", "Semis", "Quantum"]) and any(s in outflow for s in ["Energy", "Consumer"]):
+                st.markdown("📌 **Risk-on rotation** — growth/tech leading, defensives lagging. Bullish signal.")
+            elif any(s in inflow for s in ["Gold"]):
+                st.markdown("📌 **Safe haven rotation** — Gold gaining. Uncertainty/fear driving money to safety.")
+        elif inflow:
+            in_str = ", ".join([f"{s} ({intel_sector_summary[s]:+.1f}%)" for s in inflow])
+            st.markdown(f"📈 **Sector strength:** {in_str} leading. No clear rotation — broad move.")
+        else:
+            st.markdown("⚪ No significant sector rotation detected today.")
+
+        # Show all sectors ranked
+        cols_r = st.columns(2)
+        with cols_r[0]:
+            st.markdown("**Top sectors (inflow):**")
+            for s, v in sorted_intel_sectors[:5]:
+                color = "#276749" if v > 0 else "#9b2c2c"
+                st.markdown(f'<span style="color:{color};font-weight:600;">{s}: {v:+.2f}%</span>', unsafe_allow_html=True)
+        with cols_r[1]:
+            st.markdown("**Bottom sectors (outflow):**")
+            for s, v in sorted_intel_sectors[-5:]:
+                color = "#276749" if v > 0 else "#9b2c2c"
+                st.markdown(f'<span style="color:{color};font-weight:600;">{s}: {v:+.2f}%</span>', unsafe_allow_html=True)
+
+# ---- 3. RELATIVE STRENGTH ----
+with st.expander("💪 Relative Strength vs SPY"):
+    if spy_intel:
+        spy_move = spy_intel["pct_change"]
+        all_stocks_rs = sorted(stocks_for_intel.values(), key=lambda x: x["pct_change"] - spy_move, reverse=True)
+        strong_rs = [s for s in all_stocks_rs if s["pct_change"] - spy_move > 1.0][:8]
+        weak_rs = [s for s in all_stocks_rs if s["pct_change"] - spy_move < -1.0][-8:]
+
+        st.caption(f"SPY today: {spy_move:+.2f}% | Showing stocks outperforming/underperforming by 1%+")
+        rs_col1, rs_col2 = st.columns(2)
+        with rs_col1:
+            st.markdown("**💪 Strong RS (outperforming SPY):**")
+            for s in strong_rs:
+                rs = s["pct_change"] - spy_move
+                st.markdown(f'<div class="stock-row"><b>{s["ticker"]}</b> <small style="color:#718096">{s["sector"]}</small>'
+                    f'<span class="gain" style="float:right"><b>{s["pct_change"]:+.2f}%</b> (RS: +{rs:.1f}%)</span></div>', unsafe_allow_html=True)
+        with rs_col2:
+            st.markdown("**🩸 Weak RS (underperforming SPY):**")
+            for s in reversed(weak_rs):
+                rs = s["pct_change"] - spy_move
+                st.markdown(f'<div class="stock-row"><b>{s["ticker"]}</b> <small style="color:#718096">{s["sector"]}</small>'
+                    f'<span class="loss" style="float:right"><b>{s["pct_change"]:+.2f}%</b> (RS: {rs:.1f}%)</span></div>', unsafe_allow_html=True)
+    else:
+        st.info("SPY data not available")
+
+# ---- 4. GAP UP / GAP DOWN ----
+with st.expander("📊 Gap Up / Gap Down Detector"):
+    gaps_up = sorted([s for s in stocks_for_intel.values() if s["pct_change"] > 2.5], key=lambda x: x["pct_change"], reverse=True)[:10]
+    gaps_down = sorted([s for s in stocks_for_intel.values() if s["pct_change"] < -2.5], key=lambda x: x["pct_change"])[:10]
+
+    gap_col1, gap_col2 = st.columns(2)
+    with gap_col1:
+        st.markdown("**📈 Gap Ups (>2.5%):**")
+        if gaps_up:
+            for s in gaps_up:
+                st.markdown(f'<div class="stock-row"><b>{s["ticker"]}</b> <small style="color:#718096">{s["sector"]}</small>'
+                    f'<span class="gain" style="float:right"><b>{s["pct_change"]:+.2f}%</b> | ${s["price"]:.2f}</span></div>', unsafe_allow_html=True)
+        else:
+            st.caption("No significant gap ups today")
+    with gap_col2:
+        st.markdown("**📉 Gap Downs (>2.5%):**")
+        if gaps_down:
+            for s in gaps_down:
+                st.markdown(f'<div class="stock-row"><b>{s["ticker"]}</b> <small style="color:#718096">{s["sector"]}</small>'
+                    f'<span class="loss" style="float:right"><b>{s["pct_change"]:+.2f}%</b> | ${s["price"]:.2f}</span></div>', unsafe_allow_html=True)
+        else:
+            st.caption("No significant gap downs today")
+
+# ---- 5. 52-WEEK HIGH/LOW TRACKER ----
+with st.expander("🏆 52-Week High / Low Tracker"):
+    @st.cache_data(ttl=300)
+    def fetch_52w_data():
+        tickers_52w = ["AAPL","MSFT","NVDA","AMZN","GOOGL","META","TSLA","AMD","JPM","AVGO",
+                       "XOM","CVX","NEM","GOLD","FCX","ENPH","IONQ","LMT","NTR","MOS"]
+        results = {}
+        def fetch_one(ticker):
+            try:
+                url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=1y"
+                r = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+                if r.status_code != 200: return None
+                meta = r.json()["chart"]["result"][0]["meta"]
+                return {
+                    "ticker": ticker,
+                    "price": meta.get("regularMarketPrice", 0),
+                    "high52": meta.get("fiftyTwoWeekHigh", 0),
+                    "low52": meta.get("fiftyTwoWeekLow", 0),
+                }
+            except: return None
+        with ThreadPoolExecutor(max_workers=10) as ex:
+            res = list(ex.map(fetch_one, tickers_52w))
+        return [r for r in res if r]
+
+    data_52w = fetch_52w_data()
+    if data_52w:
+        near_high = [s for s in data_52w if s["high52"] > 0 and s["price"] >= s["high52"] * 0.98]
+        near_low = [s for s in data_52w if s["low52"] > 0 and s["price"] <= s["low52"] * 1.02]
+
+        w52_col1, w52_col2 = st.columns(2)
+        with w52_col1:
+            st.markdown("**🏆 Near/At 52W High:**")
+            if near_high:
+                for s in near_high:
+                    pct_from_high = ((s["price"] - s["high52"]) / s["high52"]) * 100
+                    st.markdown(f'<div class="stock-row"><b>{s["ticker"]}</b>'
+                        f'<span style="float:right;color:#276749;font-weight:600;">${s["price"]:.2f} '
+                        f'<small>(52W H: ${s["high52"]:.2f}, {pct_from_high:+.1f}%)</small></span></div>', unsafe_allow_html=True)
+            else:
+                st.caption("No stocks near 52W high")
+        with w52_col2:
+            st.markdown("**⚠️ Near/At 52W Low:**")
+            if near_low:
+                for s in near_low:
+                    pct_from_low = ((s["price"] - s["low52"]) / s["low52"]) * 100
+                    st.markdown(f'<div class="stock-row"><b>{s["ticker"]}</b>'
+                        f'<span style="float:right;color:#9b2c2c;font-weight:600;">${s["price"]:.2f} '
+                        f'<small>(52W L: ${s["low52"]:.2f}, +{pct_from_low:.1f}%)</small></span></div>', unsafe_allow_html=True)
+            else:
+                st.caption("No stocks near 52W low")
+
+# ---- 6. DOLLAR + COMMODITIES CONNECTION ----
+with st.expander("💵 Dollar & Commodities Connection"):
+    @st.cache_data(ttl=60)
+    def fetch_macro_extra():
+        tickers = ["DX-Y.NYB", "GLD", "USO", "SLV", "UNG"]
+        names = {"DX-Y.NYB": "DXY (Dollar)", "GLD": "Gold ETF", "USO": "Oil ETF", "SLV": "Silver ETF", "UNG": "Nat Gas ETF"}
+        results = {}
+        for t in tickers:
+            try:
+                url = f"https://query1.finance.yahoo.com/v8/finance/spark?symbols={t}&range=2d&interval=1d"
+                r = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+                if r.status_code != 200: continue
+                info = r.json().get(t, {})
+                closes = info.get("close", [])
+                if len(closes) >= 2 and closes[-2]:
+                    price = closes[-1]
+                    prev = closes[-2]
+                    pct = ((price - prev) / prev) * 100
+                    results[t] = {"name": names[t], "price": round(price, 2), "pct": round(pct, 2)}
+            except: continue
+        return results
+
+    macro_extra = fetch_macro_extra()
+    if macro_extra:
+        dxy = macro_extra.get("DX-Y.NYB")
+        gld = macro_extra.get("GLD")
+        uso = macro_extra.get("USO")
+
+        # Show metrics
+        m_cols = st.columns(len(macro_extra))
+        for i, (t, info) in enumerate(macro_extra.items()):
+            with m_cols[i]:
+                color = "normal" if info["pct"] >= 0 else "inverse"
+                st.metric(info["name"], f"${info['price']:.2f}", f"{info['pct']:+.2f}%")
+
+        # Connect the dots
+        if dxy and gld:
+            if dxy["pct"] > 0.3 and gld["pct"] < -0.3:
+                st.markdown("🔗 **Dollar up + Gold down** — classic inverse relationship. Strong USD pressuring precious metals.")
+            elif dxy["pct"] < -0.3 and gld["pct"] > 0.3:
+                st.markdown("🔗 **Dollar down + Gold up** — USD weakness boosting commodities and precious metals.")
+            elif dxy["pct"] > 0.3 and gld["pct"] > 0.3:
+                st.markdown("⚠️ **Dollar up + Gold up** — unusual divergence. Possible geopolitical fear driving gold despite USD strength.")
+        if dxy and uso:
+            if dxy["pct"] > 0.3 and uso["pct"] < -0.3:
+                st.markdown("🔗 **Dollar up + Oil down** — USD strength making oil more expensive globally, reducing demand.")
+            elif dxy["pct"] < -0.3 and uso["pct"] > 0.3:
+                st.markdown("🔗 **Dollar down + Oil up** — USD weakness supporting oil prices.")
+    else:
+        st.caption("Commodity data unavailable")
+
+# ---- 7. VOLUME SPIKE ALERT ----
+with st.expander("🔊 Volume Spike Alert"):
+    @st.cache_data(ttl=60)
+    def fetch_volume_data():
+        core_tickers = ["AAPL","MSFT","NVDA","AMZN","GOOGL","META","TSLA","AMD","JPM","AVGO",
+                        "XOM","CVX","BAC","GS","V","MA","INTC","CRM","LLY","UNH"]
+        results = []
+        def fetch_vol(ticker):
+            try:
+                url = f"https://query1.finance.yahoo.com/v8/finance/spark?symbols={ticker}&range=5d&interval=1d"
+                r = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+                if r.status_code != 200: return None
+                info = r.json().get(ticker, {})
+                closes = info.get("close", [])
+                # Volume not in spark — use chart endpoint for volume
+                url2 = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=5d"
+                r2 = requests.get(url2, headers=YAHOO_HEADERS, timeout=8)
+                if r2.status_code != 200: return None
+                result = r2.json()["chart"]["result"][0]
+                volumes = result["indicators"]["quote"][0].get("volume", [])
+                valid_vols = [v for v in volumes if v and v > 0]
+                if len(valid_vols) < 2: return None
+                today_vol = valid_vols[-1]
+                avg_vol = sum(valid_vols[:-1]) / len(valid_vols[:-1])
+                multiplier = today_vol / avg_vol if avg_vol > 0 else 0
+                if multiplier >= 1.8:
+                    meta = result["meta"]
+                    return {
+                        "ticker": ticker,
+                        "today_vol": today_vol,
+                        "avg_vol": round(avg_vol),
+                        "multiplier": round(multiplier, 1),
+                        "price": meta.get("regularMarketPrice", 0),
+                        "pct": active_data.get(ticker, {}).get("pct_change", 0),
+                    }
+                return None
+            except: return None
+
+        with ThreadPoolExecutor(max_workers=10) as ex:
+            res = list(ex.map(fetch_vol, core_tickers))
+        return sorted([r for r in res if r], key=lambda x: x["multiplier"], reverse=True)
+
+    vol_data = fetch_volume_data()
+    if vol_data:
+        st.caption("Stocks trading 1.8x+ their average volume — unusual activity")
+        for s in vol_data[:10]:
+            direction = "gain" if s["pct"] >= 0 else "loss"
+            sign = "+" if s["pct"] >= 0 else ""
+            vol_str = f"{s['today_vol']/1e6:.1f}M" if s['today_vol'] >= 1e6 else f"{s['today_vol']/1e3:.0f}K"
+            avg_str = f"{s['avg_vol']/1e6:.1f}M" if s['avg_vol'] >= 1e6 else f"{s['avg_vol']/1e3:.0f}K"
+            st.markdown(
+                f'<div class="stock-row"><b>{s["ticker"]}</b>'
+                f'<span style="float:right;font-size:0.85rem;">'
+                f'Vol: <b>{vol_str}</b> vs avg {avg_str} '
+                f'(<b style="color:#6b46c1;">{s["multiplier"]}x</b>) | '
+                f'<span class="{direction}"><b>{sign}{s["pct"]:.2f}%</b></span></span></div>',
+                unsafe_allow_html=True)
+    else:
+        st.caption("No unusual volume detected today")
+
+# ---- 8. EARNINGS CALENDAR ----
+with st.expander("📅 Earnings This Week (Tracked Stocks)"):
+    @st.cache_data(ttl=3600)
+    def fetch_earnings_calendar():
+        tracked = list(set([t for tickers in STOCKS.values() for t in tickers]))
+        earnings = []
+        def check_earnings(ticker):
+            try:
+                url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=5d"
+                r = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+                if r.status_code != 200: return None
+                meta = r.json()["chart"]["result"][0]["meta"]
+                earnings_ts = meta.get("earningsTimestamp")
+                earnings_start = meta.get("earningsTimestampStart")
+                earnings_end = meta.get("earningsTimestampEnd")
+                ts = earnings_ts or earnings_start
+                if not ts: return None
+                from datetime import datetime as dt
+                earnings_date = dt.fromtimestamp(ts, tz=ET)
+                now = datetime.now(ET)
+                days_away = (earnings_date.date() - now.date()).days
+                if -1 <= days_away <= 7:
+                    return {
+                        "ticker": ticker,
+                        "date": earnings_date.strftime("%a %b %d"),
+                        "days_away": days_away,
+                        "time": "After Close" if meta.get("earningsTimestamp") else "TBD",
+                    }
+                return None
+            except: return None
+
+        with ThreadPoolExecutor(max_workers=15) as ex:
+            res = list(ex.map(check_earnings, tracked))
+        return sorted([r for r in res if r], key=lambda x: x["days_away"])
+
+    earnings_cal = fetch_earnings_calendar()
+    if earnings_cal:
+        for e in earnings_cal:
+            days = e["days_away"]
+            if days < 0:
+                label = "Yesterday"
+                color = "#a0aec0"
+            elif days == 0:
+                label = "TODAY"
+                color = "#9b2c2c"
+            elif days == 1:
+                label = "Tomorrow"
+                color = "#c05621"
+            else:
+                label = f"In {days} days"
+                color = "#2b6cb0"
+            st.markdown(
+                f'<div class="stock-row"><b>{e["ticker"]}</b>'
+                f'<span style="float:right;color:{color};font-weight:600;">{e["date"]} ({label})</span></div>',
+                unsafe_allow_html=True)
+    else:
+        st.caption("No earnings from tracked stocks this week")
+
+# ============================================================
+
 # --- Sector Heatmap (clickable) ---
 st.subheader("Sector Performance (click to explore)")
 stocks_only = {k: v for k, v in active_data.items() if k not in INDICES and k not in MACRO_TICKERS}
