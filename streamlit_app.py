@@ -4,6 +4,7 @@ import requests
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 import pytz
+import re
 
 # --- Page Config ---
 st.set_page_config(
@@ -46,7 +47,51 @@ for sector, tickers in STOCKS.items():
 
 ALL_TICKERS = list(set(INDICES + MACRO_TICKERS + [t for tickers in STOCKS.values() for t in tickers]))
 ET = pytz.timezone("US/Eastern")
-YAHOO_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+YAHOO_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"}
+
+
+# --- Yahoo Finance Session with Cookie/Crumb ---
+def get_yahoo_session():
+    """Create a requests session with valid Yahoo Finance cookie and crumb."""
+    session = requests.Session()
+    session.headers.update(YAHOO_HEADERS)
+    try:
+        # Step 1: Visit Yahoo Finance to get cookies
+        session.get("https://finance.yahoo.com", timeout=10)
+        # Step 2: Get crumb using the session cookies
+        crumb_resp = session.get(
+            "https://query2.finance.yahoo.com/v1/test/getcrumb",
+            timeout=10
+        )
+        if crumb_resp.status_code == 200:
+            crumb = crumb_resp.text.strip()
+            session.crumb = crumb
+        else:
+            session.crumb = None
+    except Exception:
+        session.crumb = None
+    return session
+
+
+@st.cache_resource(ttl=1800)
+def _cached_yahoo_session():
+    """Cache the Yahoo session for 30 minutes to avoid re-auth on every refresh."""
+    return get_yahoo_session()
+
+
+def yahoo_session():
+    """Get or refresh the Yahoo session."""
+    return _cached_yahoo_session()
+
+
+def yahoo_get(url, timeout=10):
+    """Make a GET request using the authenticated Yahoo session."""
+    session = yahoo_session()
+    # Append crumb if URL is a Yahoo Finance API endpoint and doesn't already have crumb
+    if "finance.yahoo.com" in url and "crumb=" not in url and session.crumb:
+        separator = "&" if "?" in url else "?"
+        url = f"{url}{separator}crumb={session.crumb}"
+    return session.get(url, timeout=timeout)
 
 
 # --- Market Phase ---
@@ -67,7 +112,7 @@ def get_market_phase():
 def fetch_spark_batch(batch):
     symbols = ",".join(batch)
     url = f"https://query1.finance.yahoo.com/v8/finance/spark?symbols={symbols}&range=2d&interval=1d&includePrePost=true"
-    resp = requests.get(url, headers=YAHOO_HEADERS, timeout=10)
+    resp = yahoo_get(url, timeout=10)
     resp.raise_for_status()
     return resp.json()
 
@@ -75,7 +120,7 @@ def fetch_spark_batch(batch):
 def fetch_chart_single(ticker):
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=5m&range=1d&includePrePost=true"
     try:
-        resp = requests.get(url, headers=YAHOO_HEADERS, timeout=10)
+        resp = yahoo_get(url, timeout=10)
         resp.raise_for_status()
         result = resp.json()["chart"]["result"][0]
         meta = result["meta"]
@@ -96,7 +141,7 @@ def fetch_chart_single(ticker):
             "change": round(float(change), 2), "pct_change": round(float(pct_change), 2),
             "volume": int(total_vol), "is_premarket": True,
         }
-    except:
+    except Exception as e:
         return None
 
 
@@ -108,7 +153,7 @@ def fetch_extended_hours_data(mode):
     def fetch_ext_single(ticker):
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=5m&range=1d&includePrePost=true"
         try:
-            resp = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+            resp = yahoo_get(url, timeout=8)
             if resp.status_code != 200:
                 return None
             result = resp.json()["chart"]["result"][0]
@@ -129,7 +174,7 @@ def fetch_extended_hours_data(mode):
                 "current_price": round(latest, 2), "change": round(change, 2),
                 "pct_change": round(pct, 2), "sector": primary_sector, "label": label,
             }
-        except:
+        except Exception:
             return None
 
     with ThreadPoolExecutor(max_workers=15) as ex:
@@ -193,7 +238,7 @@ def fetch_all_data():
                     "sectors": sectors, "is_premarket": (phase == "premarket"),
                 }
     except Exception as e:
-        pass
+        st.warning(f"⚠️ Data fetch error: {e}. Yahoo may be rate-limiting or requiring auth.")
 
     # Step 2: Fetch ^TNX and ^VIX via chart endpoint (they need special URL encoding)
     special_tickers = [t for t in ALL_TICKERS if t.startswith("^")]
@@ -217,6 +262,14 @@ def generate_insights(data):
     tnx = data.get("^TNX")
     xlf = data.get("XLF")
     phase = get_market_phase()
+
+    # Calculate bull/bear percentages for use in insights
+    stocks_only = {k: v for k, v in data.items() if k not in INDICES and k not in MACRO_TICKERS}
+    total = len(stocks_only)
+    bulls_count = sum(1 for s in stocks_only.values() if s["pct_change"] > 0)
+    bears_count = sum(1 for s in stocks_only.values() if s["pct_change"] < 0)
+    bull_pct = round((bulls_count / total) * 100) if total > 0 else 50
+    bear_pct = round((bears_count / total) * 100) if total > 0 else 50
 
     if phase == "premarket":
         insights.append("🌅 Showing pre-market data (updates until 9:20 AM ET)")
@@ -536,7 +589,7 @@ def fetch_beast_mode_data():
     symbols = ",".join(SPY_WEIGHTS)
     url = f"https://query1.finance.yahoo.com/v8/finance/spark?symbols={symbols}&range=5d&interval=1d&includePrePost=true"
     try:
-        resp = requests.get(url, headers=YAHOO_HEADERS, timeout=10)
+        resp = yahoo_get(url, timeout=10)
         resp.raise_for_status()
         raw = resp.json()
 
@@ -637,7 +690,7 @@ def fetch_day_highlow():
     def check_ticker(ticker):
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1m&range=1d&includePrePost=false"
         try:
-            resp = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+            resp = yahoo_get(url, timeout=8)
             if resp.status_code != 200:
                 return None
             result = resp.json()["chart"]["result"][0]
@@ -801,7 +854,7 @@ def fetch_spy_options():
     try:
         # Get available expiry dates
         url = "https://query1.finance.yahoo.com/v7/finance/options/SPY"
-        resp = requests.get(url, headers=YAHOO_HEADERS, timeout=10)
+        resp = yahoo_get(url, timeout=10)
         if resp.status_code != 200:
             return None
         data_opt = resp.json()["optionChain"]["result"][0]
@@ -809,7 +862,7 @@ def fetch_spy_options():
 
         # Get options chain for that expiry
         url2 = f"https://query1.finance.yahoo.com/v7/finance/options/SPY?date={expiry_ts}"
-        resp2 = requests.get(url2, headers=YAHOO_HEADERS, timeout=10)
+        resp2 = yahoo_get(url2, timeout=10)
         if resp2.status_code != 200:
             return None
         result = resp2.json()["optionChain"]["result"][0]
@@ -1234,7 +1287,7 @@ with st.expander("🏆 52-Week High / Low Tracker"):
         def fetch_one(ticker):
             try:
                 url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=1y"
-                r = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+                r = yahoo_get(url, timeout=8)
                 if r.status_code != 200: return None
                 meta = r.json()["chart"]["result"][0]["meta"]
                 return {
@@ -1285,7 +1338,7 @@ with st.expander("💵 Dollar & Commodities Connection"):
         for t in tickers:
             try:
                 url = f"https://query1.finance.yahoo.com/v8/finance/spark?symbols={t}&range=2d&interval=1d"
-                r = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+                r = yahoo_get(url, timeout=8)
                 if r.status_code != 200: continue
                 info = r.json().get(t, {})
                 closes = info.get("close", [])
@@ -1336,13 +1389,13 @@ with st.expander("🔊 Volume Spike Alert"):
         def fetch_vol(ticker):
             try:
                 url = f"https://query1.finance.yahoo.com/v8/finance/spark?symbols={ticker}&range=5d&interval=1d"
-                r = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+                r = yahoo_get(url, timeout=8)
                 if r.status_code != 200: return None
                 info = r.json().get(ticker, {})
                 closes = info.get("close", [])
                 # Volume not in spark — use chart endpoint for volume
                 url2 = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=5d"
-                r2 = requests.get(url2, headers=YAHOO_HEADERS, timeout=8)
+                r2 = yahoo_get(url2, timeout=8)
                 if r2.status_code != 200: return None
                 result = r2.json()["chart"]["result"][0]
                 volumes = result["indicators"]["quote"][0].get("volume", [])
@@ -1405,7 +1458,7 @@ with st.expander("📅 Earnings This Week (Tracked Stocks)"):
             date_str = check_date.strftime("%Y-%m-%d")
             try:
                 url = f"https://finance.yahoo.com/calendar/earnings?day={date_str}"
-                r = requests.get(url, headers=YAHOO_HEADERS, timeout=10)
+                r = yahoo_get(url, timeout=10)
                 if r.status_code != 200:
                     continue
                 # Parse tickers from the page HTML
@@ -1611,7 +1664,7 @@ st.caption("Latest news for SPY top 10 stocks — scored for market impact | Sou
 def fetch_stock_news(ticker):
     try:
         url = f"https://query1.finance.yahoo.com/v1/finance/search?q={ticker}&newsCount=8&quotesCount=0"
-        r = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+        r = yahoo_get(url, timeout=8)
         if r.status_code != 200:
             return []
         return r.json().get("news", [])
@@ -1623,7 +1676,7 @@ def fetch_analyst_calls(ticker):
     """Fetch today's analyst upgrade/downgrade/price target news."""
     try:
         url = f"https://query1.finance.yahoo.com/v1/finance/search?q={ticker}+analyst+upgrade+downgrade+price+target&newsCount=5&quotesCount=0"
-        r = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+        r = yahoo_get(url, timeout=8)
         if r.status_code != 200:
             return []
         news = r.json().get("news", [])
@@ -1652,7 +1705,7 @@ def fetch_macro_headlines():
     ]
     for source_name, url in sources:
         try:
-            r = requests.get(url, headers=YAHOO_HEADERS, timeout=8)
+            r = yahoo_get(url, timeout=8)
             if r.status_code != 200:
                 continue
             root = ET_xml.fromstring(r.content)
