@@ -1,0 +1,12 @@
+# Test-only dependencies for the Dashboard Pro Pack.
+# Production deploys (Render) install requirements.txt only; this file
+# is installed locally and in CI for running the test suite.
+-r requirements.txt
+
+pytest==8.3.4
+hypothesis==6.122.3
+responses==0.25.3
+
+# Build-time tool: regenerates static/icons/*.png via tools/make_icons.py.
+# Not required at runtime; production deploys (Render) skip this file.
+Pillow>=10.0.0

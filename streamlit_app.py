@@ -1,9 +1,64 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_autorefresh import st_autorefresh
 import requests
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 import pytz
+
+# --- Dashboard Pro Pack feature modules (task 11.2) ---
+# Imported here so each renderer is available everywhere on the page. The
+# modules are self-contained: they reuse the cached `fetch_all_data()` and
+# `fetch_macro_headlines()` results passed in by the caller and never issue
+# new HTTP requests of their own. `render_premarket_gappers` self-gates on
+# market phase, so it is safe to call unconditionally on every render.
+from app.watchlist import render_watchlist_section
+from app.universal_search import render_universal_search
+from app.premarket_gappers import render_premarket_gappers
+from app.daily_summary import render_daily_summary
+from app.volatility_scanner import render_volatility_scanner
+
+# --- PWA + responsive head assets (loaded once at module import) ---
+# Read static/styles.css at module load so it is available for injection on
+# every page render without re-reading the file. Wrapped in a broad try/except
+# so a missing or unreadable stylesheet degrades to no styles rather than
+# crashing the dashboard.
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+def _load_styles_css() -> str:
+    try:
+        return (_STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+
+_PWA_STYLES_CSS = _load_styles_css()
+
+
+def _inject_pwa_head() -> None:
+    """Inject the PWA + responsive head fragment via an invisible
+    components.v1.html iframe.
+
+    Includes:
+      - <link rel="manifest" href="/manifest.json">      (Req 5.2)
+      - <meta name="theme-color" content="#0f172a">     (Req 5.2)
+      - <meta name="viewport" ...>                       (Req 6.7)
+      - <script src="/static/pwa-register.js" defer>     (Req 5.3)
+      - <style> block with the contents of static/styles.css
+
+    Called once immediately after st.set_page_config(...) and before any
+    other Streamlit render call, with height=0 so the iframe is invisible.
+    """
+    style_block = f"<style>{_PWA_STYLES_CSS}</style>" if _PWA_STYLES_CSS else ""
+    components.html(
+        f"""<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0f172a">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="/static/pwa-register.js" defer></script>
+{style_block}""",
+        height=0,
+    )
+
 
 # --- Page Config ---
 st.set_page_config(
@@ -12,6 +67,11 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
+# Inject PWA manifest link, theme-color, viewport meta, service-worker register
+# script, and the responsive stylesheet. Must run before any other Streamlit
+# render call so the head fragment lands at the top of the page.
+_inject_pwa_head()
 
 # Auto-refresh every 30 seconds
 st_autorefresh(interval=30000, limit=None, key="data_refresh")
@@ -719,6 +779,12 @@ if breakout_alerts:
                     unsafe_allow_html=True,
                 )
 
+# --- Pre-Market Gappers (task 11.2) ---
+# Self-gates on `get_market_phase()` — renders only during the pre-market
+# session. Reuses its own 60s `fetch_premarket_quotes()` cache, no new HTTP
+# from this call site.
+render_premarket_gappers()
+
 # --- Index Bar ---
 st.subheader("Market Indices")
 idx_cols = st.columns(3)
@@ -732,6 +798,14 @@ for i, sym in enumerate(INDICES):
                 value=f"${info['price']:.2f}",
                 delta=f"{info['change']:+.2f} ({info['pct_change']:+.2f}%)",
             )
+
+# --- My Watchlist + Universal Search (task 11.2) ---
+# Both sections live near the top of the page so they are easy to reach.
+# `render_watchlist_section` consumes the existing `active_data` quotes
+# dict (no new HTTP). `render_universal_search` issues its own search /
+# detail calls only when the user types into the input.
+render_watchlist_section(active_data)
+render_universal_search()
 
 # --- SPY Weight Analysis ---
 spy_info = active_data.get("SPY")
@@ -1842,6 +1916,12 @@ with macro_tab:
 
 # ============================================================
 
+# --- Volatility Scanner (task 11.2) ---
+# Reuses `active_data` and the already-fetched `macro_headlines` from the
+# Stock Catalyst Scanner section above — no new HTTP. Placed after the
+# catalyst scanner so `macro_headlines` is in scope.
+render_volatility_scanner(active_data, macro_headlines)
+
 # --- Sector Heatmap (clickable) ---
 st.subheader("Sector Performance (click to explore)")
 stocks_only = {k: v for k, v in active_data.items() if k not in INDICES and k not in MACRO_TICKERS}
@@ -1958,6 +2038,12 @@ with col2:
             )
     else:
         st.info("No losers")
+
+# --- Daily Market Summary (task 11.2) ---
+# Bottom-of-page placement so the auto-trigger at 16:00 ET fires after the
+# rest of the dashboard has rendered. Reuses the already-cached
+# `active_data` and `macro_headlines` — no new HTTP from this call site.
+render_daily_summary(active_data, macro_headlines)
 
 # --- Auto Refresh ---
 st.markdown("---")

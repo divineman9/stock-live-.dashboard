@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, send_from_directory, make_response
 import requests as http_requests
 from datetime import datetime
 import pytz
@@ -368,9 +368,29 @@ def index():
     return send_from_directory("static", "index.html")
 
 
-@app.route("/<path:filename>")
-def static_files(filename):
-    return send_from_directory("static", filename)
+@app.route("/manifest.json")
+def manifest():
+    return send_from_directory(
+        "static", "manifest.json", mimetype="application/manifest+json"
+    )
+
+
+@app.route("/service-worker.js")
+def service_worker():
+    resp = make_response(
+        send_from_directory(
+            "static", "service-worker.js", mimetype="application/javascript"
+        )
+    )
+    resp.headers["Service-Worker-Allowed"] = "/"
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
+# Note: /static/<path:filename> is already provided by Flask via
+# `Flask(__name__, static_folder='static')` (endpoint name: `static`).
+# It is registered before the catch-all `/<path:filename>` below, so
+# requests to /static/* are served from the static folder directly.
 
 
 @app.route("/api/data")
@@ -425,6 +445,16 @@ def get_sector(sector_name):
     losers = sorted([s for s in sector_data if s["pct_change"] < 0], key=lambda x: x["pct_change"])
 
     return jsonify({"sector": matched, "gainers": gainers, "losers": losers, "all": sector_data, "phase": phase})
+
+
+@app.route("/<path:filename>")
+def static_files(filename):
+    """Catch-all for root-level static files (e.g., /styles.css, /app.js).
+
+    Registered last so it does not shadow /manifest.json, /service-worker.js,
+    or /static/<path:filename>.
+    """
+    return send_from_directory("static", filename)
 
 
 if __name__ == "__main__":

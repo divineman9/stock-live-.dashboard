@@ -1,3 +1,22 @@
+/* =============================================================
+   static/styles.css
+
+   Stylesheet for the Stock Live Dashboard. Serves two surfaces:
+     1. The vanilla HTML dashboard at static/index.html (loaded
+        via <link rel="stylesheet" href="styles.css">).
+     2. The Streamlit app, which injects the contents of this
+        file into a <style> block at the top of the page (see
+        the PWA + responsive head injection in streamlit_app.py).
+
+   The bulk of the file styles the vanilla HTML dashboard. The
+   trailing @media (max-width: 767px) block adds mobile-first
+   responsive tweaks for the Streamlit surface (Requirement 6 of
+   the dashboard-pro-pack spec): single-column layout, larger
+   minimum font sizes, scrollable tables, and 44x44 minimum hit
+   areas. No overrides apply at viewport widths >= 768px, so the
+   existing desktop layout is preserved.
+   ============================================================= */
+
 * {
   margin: 0;
   padding: 0;
@@ -328,4 +347,76 @@ header h1 {
 
 .hidden {
   display: none !important;
+}
+
+/* =============================================================
+   Mobile-First Responsive Tweaks (Requirement 6)
+
+   Activates only when the browser viewport is strictly less than
+   768 CSS pixels. Targets Streamlit's rendered DOM:
+     - .stColumns > div    : Streamlit's column children
+     - .gainers-panel /
+       .losers-panel       : Top Gainers / Top Losers panels
+     - [data-testid="stTable"], [data-testid="stDataFrame"]
+                           : Streamlit's table components
+     - button, [role="button"], a.stButton
+                           : Interactive controls (44x44 min hit area)
+
+   At viewport widths >= 768px no overrides apply, so the existing
+   multi-column desktop layout is preserved untouched.
+   ============================================================= */
+
+@media (max-width: 767px) {
+  /* Stack any Streamlit column row to a single column at full width.
+     Covers the sector heatmap row and any other st.columns(...) call.
+     (Requirements 6.1, 6.2) */
+  .stColumns > div {
+    width: 100% !important;
+    flex-basis: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Stack the Top Gainers and Top Losers panels vertically rather
+     than side-by-side. Targets both the vanilla HTML two-column
+     wrapper and any Streamlit panels tagged with these classes.
+     (Requirement 6.2) */
+  .two-col {
+    grid-template-columns: 1fr !important;
+  }
+
+  .gainers-panel,
+  .losers-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+    display: block !important;
+  }
+
+  /* Body text at >= 14px, headings at >= 16px on small screens.
+     (Requirement 6.3) */
+  body {
+    font-size: 14px;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-size: 16px;
+  }
+
+  /* Constrain tables and dataframes to their container width and
+     allow horizontal scrolling for any overflow.
+     (Requirement 6.4) */
+  [data-testid="stTable"],
+  [data-testid="stDataFrame"] {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  /* Enforce a 44x44 CSS pixel minimum hit area for all interactive
+     controls (buttons, ARIA buttons, Streamlit buttons, links).
+     (Requirement 6.5) */
+  button,
+  [role="button"],
+  a.stButton {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
