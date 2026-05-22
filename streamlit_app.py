@@ -93,7 +93,7 @@ STOCKS = {
     "Solar": ["ENPH", "SEDG", "FSLR", "RUN", "NOVA", "ARRY", "CSIQ"],
     "Quantum": ["IONQ", "RGTI", "QBTS", "QUBT", "ARQQ", "QMCO", "QTUM"],
     "Semis": ["NVDA", "AMD", "AVGO", "INTC", "QCOM", "MU", "MRVL", "TSM", "ASML", "TXN"],
-    "Medical AI": ["ISRG", "VEEV", "DXCM", "RXRX", "SDGR", "GMED", "NNOX", "HIMS", "DOCS", "MDAI"],
+    "Medical AI": ["TEM", "RXRX", "SDGR", "GEHC", "SMMNY", "BFLY", "DOCS", "HCAT", "EXAI", "GH"],
 }
 INDICES = ["SPY", "QQQ", "DIA"]
 # Macro indicators: 10Y Treasury Yield, VIX (fear index), XLF (financials ETF)
