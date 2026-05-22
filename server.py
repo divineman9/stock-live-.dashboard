@@ -18,6 +18,7 @@ STOCKS = {
     "Energy": ["XOM", "CVX", "COP", "SLB", "EOG"],
     "Consumer": ["WMT", "KO", "PEP", "MCD", "NKE", "SBUX", "HD"],
     "Industrial": ["CAT", "BA", "HON", "UPS", "GE"],
+    "Medical AI": ["ISRG", "VEEV", "DXCM", "RXRX", "SDGR", "GMED", "NNOX", "HIMS", "DOCS", "MDAI"],
 }
 
 INDICES = ["SPY", "QQQ", "DIA"]
