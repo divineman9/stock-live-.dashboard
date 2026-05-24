@@ -1885,18 +1885,12 @@ with catalyst_tab:
                 for a in analyst_items:
                     dot = "🟢" if a["sentiment"] == "bullish" else "🔴" if a["sentiment"] == "bearish" else "🟡"
                     short = a["title"][:95] + "..." if len(a["title"]) > 95 else a["title"]
-                    link = a.get("link", "")
-                    title_html = (
-                        f'<a class="news-link" href="{link}" target="_blank" rel="noopener">'
-                        f'<b style="font-size:0.82rem;">{short}</b></a>'
-                        if link else f'<b style="font-size:0.82rem;color:#2d3748;">{short}</b>'
-                    )
+                    short_md = short.replace("[", "(").replace("]", ")")  # escape for markdown
+                    link = a.get("link", "").strip()
+                    title_md = f"[{short_md}]({link})" if link else f"**{short_md}**"
                     st.markdown(
-                        f'<div style="background:#f0fff4;border-left:3px solid #38a169;'
-                        f'border-radius:4px;padding:6px 10px;margin-bottom:4px;">'
-                        f'{dot} {title_html}<br/>'
-                        f'<small style="color:#718096;">[{a["source"]}] · {a["time"]}</small>'
-                        f'</div>',
+                        f"{dot} {title_md}  \n"
+                        f"<small style='color:#718096;'>\\[{a['source']}\\] · {a['time']}</small>",
                         unsafe_allow_html=True,
                     )
                 st.markdown("---")
@@ -1906,17 +1900,12 @@ with catalyst_tab:
                 for n in all_news[:4]:
                     dot = "🟢" if n["sentiment"] == "bullish" else "🔴" if n["sentiment"] == "bearish" else "⚪"
                     short = n["title"][:95] + "..." if len(n["title"]) > 95 else n["title"]
-                    link = n.get("link", "")
-                    title_html = (
-                        f'<a class="news-link" href="{link}" target="_blank" rel="noopener">'
-                        f'{short}</a>'
-                        if link else short
-                    )
+                    short_md = short.replace("[", "(").replace("]", ")")
+                    link = n.get("link", "").strip()
+                    title_md = f"[{short_md}]({link})" if link else short_md
                     st.markdown(
-                        f'<div style="padding:5px 0;border-bottom:1px solid #f7fafc;">'
-                        f'{dot} <span style="font-size:0.82rem;">{title_html}</span><br/>'
-                        f'<small style="color:#a0aec0;">[{n["source"]}] · {n["time"]} · <i>{n["reason"]}</i></small>'
-                        f'</div>',
+                        f"{dot} {title_md}  \n"
+                        f"<small style='color:#a0aec0;'>\\[{n['source']}\\] · {n['time']} · *{n['reason']}*</small>",
                         unsafe_allow_html=True,
                     )
             else:
@@ -1928,35 +1917,23 @@ with macro_tab:
         s, r = score_headline(h["title"])
         dot = "🟢" if s == "bullish" else "🔴" if s == "bearish" else "⚪"
         matched = match_to_tickers(h["title"], CATALYST_TICKERS)
-        tags = " ".join([
-            f'<span style="background:#ebf4ff;color:#2b6cb0;padding:1px 5px;border-radius:4px;font-size:0.7rem;font-weight:600;">{t}</span>'
-            for t in matched
-        ])
+        tags_str = " ".join([f"`{t}`" for t in matched]) if matched else ""
         pub_time = h.get("pub", "")[:16]
         link = h.get("link", "").strip()
-        title_text = h["title"]
-        
+        title_text = h["title"].replace("[", "(").replace("]", ")")  # Escape brackets for markdown
+
+        # Use native markdown link syntax — guaranteed clickable in Streamlit
         if link:
-            # Wrap the entire row in a link block — most reliable way
-            st.markdown(
-                f'<a href="{link}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;display:block;">'
-                f'<div style="padding:5px 0;border-bottom:1px solid #f0f4f8;cursor:pointer;transition:background 0.15s;" '
-                f'onmouseover="this.style.background=\'#f7fafc\';" onmouseout="this.style.background=\'transparent\';">'
-                f'{dot} <small style="color:#718096;font-weight:600;">[{h["source"]}]</small> '
-                f'<span style="font-size:0.83rem;color:#2d3748;">{title_text}</span> {tags}'
-                f'<br/><small style="color:#a0aec0;">{pub_time}</small>'
-                f'</div></a>',
-                unsafe_allow_html=True,
-            )
+            title_md = f"[{title_text}]({link})"
         else:
-            st.markdown(
-                f'<div style="padding:5px 0;border-bottom:1px solid #f0f4f8;">'
-                f'{dot} <small style="color:#718096;font-weight:600;">[{h["source"]}]</small> '
-                f'<span style="font-size:0.83rem;color:#2d3748;">{title_text}</span> {tags}'
-                f'<br/><small style="color:#a0aec0;">{pub_time}</small>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
+            title_md = title_text
+
+        st.markdown(
+            f"{dot} **\\[{h['source']}\\]** {title_md}  {tags_str}  \n"
+            f"<small style='color:#a0aec0;'>{pub_time}</small>",
+            unsafe_allow_html=True,
+        )
+        st.divider()
 
 # ============================================================
 
