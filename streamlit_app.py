@@ -1913,13 +1913,22 @@ with catalyst_tab:
 
 with macro_tab:
     st.markdown("**Latest headlines from CNBC & MarketWatch:**")
+    
+    # DEBUG: show link presence for first 3 headlines so we can verify
+    if macro_headlines:
+        debug_info = []
+        for i, h in enumerate(macro_headlines[:3]):
+            link = h.get("link", "")
+            debug_info.append(f"#{i}: link={'✓ ' + link[:60] if link else '✗ EMPTY'}")
+        st.caption("🔧 Debug: " + " | ".join(debug_info))
+    
     for h in macro_headlines[:25]:
         s, r = score_headline(h["title"])
         dot = "🟢" if s == "bullish" else "🔴" if s == "bearish" else "⚪"
         matched = match_to_tickers(h["title"], CATALYST_TICKERS)
         tags_str = " ".join([f"`{t}`" for t in matched]) if matched else ""
         pub_time = h.get("pub", "")[:16]
-        link = h.get("link", "").strip()
+        link = h.get("link", "").strip() if h.get("link") else ""
         title_text = h["title"].replace("[", "(").replace("]", ")")  # Escape brackets for markdown
 
         # Use native markdown link syntax — guaranteed clickable in Streamlit
