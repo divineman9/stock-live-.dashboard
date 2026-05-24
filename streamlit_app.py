@@ -1933,20 +1933,30 @@ with macro_tab:
             for t in matched
         ])
         pub_time = h.get("pub", "")[:16]
-        link = h.get("link", "")
-        title_html = (
-            f'<a class="news-link" href="{link}" target="_blank" rel="noopener">'
-            f'{h["title"]}</a>'
-            if link else h["title"]
-        )
-        st.markdown(
-            f'<div style="padding:5px 0;border-bottom:1px solid #f0f4f8;">'
-            f'{dot} <small style="color:#718096;font-weight:600;">[{h["source"]}]</small> '
-            f'<span style="font-size:0.83rem;">{title_html}</span> {tags}'
-            f'<br/><small style="color:#a0aec0;">{pub_time}</small>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
+        link = h.get("link", "").strip()
+        title_text = h["title"]
+        
+        if link:
+            # Wrap the entire row in a link block — most reliable way
+            st.markdown(
+                f'<a href="{link}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;display:block;">'
+                f'<div style="padding:5px 0;border-bottom:1px solid #f0f4f8;cursor:pointer;transition:background 0.15s;" '
+                f'onmouseover="this.style.background=\'#f7fafc\';" onmouseout="this.style.background=\'transparent\';">'
+                f'{dot} <small style="color:#718096;font-weight:600;">[{h["source"]}]</small> '
+                f'<span style="font-size:0.83rem;color:#2d3748;">{title_text}</span> {tags}'
+                f'<br/><small style="color:#a0aec0;">{pub_time}</small>'
+                f'</div></a>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f'<div style="padding:5px 0;border-bottom:1px solid #f0f4f8;">'
+                f'{dot} <small style="color:#718096;font-weight:600;">[{h["source"]}]</small> '
+                f'<span style="font-size:0.83rem;color:#2d3748;">{title_text}</span> {tags}'
+                f'<br/><small style="color:#a0aec0;">{pub_time}</small>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
 
 # ============================================================
 
