@@ -1844,11 +1844,13 @@ with catalyst_tab:
             time_str = datetime.fromtimestamp(ts, tz=ET).strftime("%b %d %I:%M %p ET") if ts else ""
             s, r = score_headline(title)
             all_news.append({"title": title, "source": n.get("publisher", "Yahoo"),
-                             "sentiment": s, "reason": r, "time": time_str})
+                             "sentiment": s, "reason": r, "time": time_str,
+                             "link": n.get("link", "")})
         for n in macro_matches[:2]:
             s, r = score_headline(n.get("title", ""))
             all_news.append({"title": n.get("title", ""), "source": n.get("source", ""),
-                             "sentiment": s, "reason": r, "time": n.get("pub", "")[:16]})
+                             "sentiment": s, "reason": r, "time": n.get("pub", "")[:16],
+                             "link": n.get("link", "")})
 
         # Analyst calls today
         analyst_items = []
@@ -1857,7 +1859,8 @@ with catalyst_tab:
             time_str = datetime.fromtimestamp(ts, tz=ET).strftime("%b %d %I:%M %p ET") if ts else ""
             s, r = score_headline(n.get("title", ""))
             analyst_items.append({"title": n.get("title", ""), "source": n.get("publisher", ""),
-                                  "sentiment": s, "reason": r, "time": time_str})
+                                  "sentiment": s, "reason": r, "time": time_str,
+                                  "link": n.get("link", "")})
 
         # Collapsed expander per stock
         analyst_badge = f" 📊{len(analyst_items)}" if analyst_items else ""
@@ -1870,10 +1873,18 @@ with catalyst_tab:
                 for a in analyst_items:
                     dot = "🟢" if a["sentiment"] == "bullish" else "🔴" if a["sentiment"] == "bearish" else "🟡"
                     short = a["title"][:95] + "..." if len(a["title"]) > 95 else a["title"]
+                    link = a.get("link", "")
+                    title_html = (
+                        f'<a href="{link}" target="_blank" style="color:#2d3748;text-decoration:none;border-bottom:1px dashed transparent;transition:all 0.15s;" '
+                        f'onmouseover="this.style.color=\'#2b6cb0\';this.style.borderBottomColor=\'#2b6cb0\';" '
+                        f'onmouseout="this.style.color=\'#2d3748\';this.style.borderBottomColor=\'transparent\';">'
+                        f'<b style="font-size:0.82rem;">{short}</b></a>'
+                        if link else f'<b style="font-size:0.82rem;color:#2d3748;">{short}</b>'
+                    )
                     st.markdown(
                         f'<div style="background:#f0fff4;border-left:3px solid #38a169;'
                         f'border-radius:4px;padding:6px 10px;margin-bottom:4px;">'
-                        f'{dot} <b style="font-size:0.82rem;color:#2d3748;">{short}</b><br/>'
+                        f'{dot} {title_html}<br/>'
                         f'<small style="color:#718096;">[{a["source"]}] · {a["time"]}</small>'
                         f'</div>',
                         unsafe_allow_html=True,
@@ -1885,9 +1896,17 @@ with catalyst_tab:
                 for n in all_news[:4]:
                     dot = "🟢" if n["sentiment"] == "bullish" else "🔴" if n["sentiment"] == "bearish" else "⚪"
                     short = n["title"][:95] + "..." if len(n["title"]) > 95 else n["title"]
+                    link = n.get("link", "")
+                    title_html = (
+                        f'<a href="{link}" target="_blank" style="color:#2d3748;text-decoration:none;border-bottom:1px dashed transparent;transition:all 0.15s;" '
+                        f'onmouseover="this.style.color=\'#2b6cb0\';this.style.borderBottomColor=\'#2b6cb0\';" '
+                        f'onmouseout="this.style.color=\'#2d3748\';this.style.borderBottomColor=\'transparent\';">'
+                        f'{short}</a>'
+                        if link else short
+                    )
                     st.markdown(
                         f'<div style="padding:5px 0;border-bottom:1px solid #f7fafc;">'
-                        f'{dot} <span style="font-size:0.82rem;color:#2d3748;">{short}</span><br/>'
+                        f'{dot} <span style="font-size:0.82rem;">{title_html}</span><br/>'
                         f'<small style="color:#a0aec0;">[{n["source"]}] · {n["time"]} · <i>{n["reason"]}</i></small>'
                         f'</div>',
                         unsafe_allow_html=True,
@@ -1906,10 +1925,18 @@ with macro_tab:
             for t in matched
         ])
         pub_time = h.get("pub", "")[:16]
+        link = h.get("link", "")
+        title_html = (
+            f'<a href="{link}" target="_blank" style="color:#2d3748;text-decoration:none;border-bottom:1px dashed transparent;transition:all 0.15s;" '
+            f'onmouseover="this.style.color=\'#2b6cb0\';this.style.borderBottomColor=\'#2b6cb0\';" '
+            f'onmouseout="this.style.color=\'#2d3748\';this.style.borderBottomColor=\'transparent\';">'
+            f'{h["title"]}</a>'
+            if link else h["title"]
+        )
         st.markdown(
             f'<div style="padding:5px 0;border-bottom:1px solid #f0f4f8;">'
             f'{dot} <small style="color:#718096;font-weight:600;">[{h["source"]}]</small> '
-            f'<span style="font-size:0.83rem;color:#2d3748;">{h["title"]}</span> {tags}'
+            f'<span style="font-size:0.83rem;">{title_html}</span> {tags}'
             f'<br/><small style="color:#a0aec0;">{pub_time}</small>'
             f'</div>',
             unsafe_allow_html=True,
