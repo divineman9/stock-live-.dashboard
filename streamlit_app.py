@@ -436,6 +436,18 @@ st.markdown("""
     div[data-baseweb="select"] svg {
         fill: #2b6cb0 !important;
     }
+    /* Clickable news headline links */
+    a.news-link {
+        color: #2d3748 !important;
+        text-decoration: none !important;
+        border-bottom: 1px dashed transparent;
+        transition: color 0.15s, border-bottom-color 0.15s;
+    }
+    a.news-link:hover {
+        color: #2b6cb0 !important;
+        border-bottom-color: #2b6cb0 !important;
+        cursor: pointer;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1875,9 +1887,7 @@ with catalyst_tab:
                     short = a["title"][:95] + "..." if len(a["title"]) > 95 else a["title"]
                     link = a.get("link", "")
                     title_html = (
-                        f'<a href="{link}" target="_blank" style="color:#2d3748;text-decoration:none;border-bottom:1px dashed transparent;transition:all 0.15s;" '
-                        f'onmouseover="this.style.color=\'#2b6cb0\';this.style.borderBottomColor=\'#2b6cb0\';" '
-                        f'onmouseout="this.style.color=\'#2d3748\';this.style.borderBottomColor=\'transparent\';">'
+                        f'<a class="news-link" href="{link}" target="_blank" rel="noopener">'
                         f'<b style="font-size:0.82rem;">{short}</b></a>'
                         if link else f'<b style="font-size:0.82rem;color:#2d3748;">{short}</b>'
                     )
@@ -1898,9 +1908,7 @@ with catalyst_tab:
                     short = n["title"][:95] + "..." if len(n["title"]) > 95 else n["title"]
                     link = n.get("link", "")
                     title_html = (
-                        f'<a href="{link}" target="_blank" style="color:#2d3748;text-decoration:none;border-bottom:1px dashed transparent;transition:all 0.15s;" '
-                        f'onmouseover="this.style.color=\'#2b6cb0\';this.style.borderBottomColor=\'#2b6cb0\';" '
-                        f'onmouseout="this.style.color=\'#2d3748\';this.style.borderBottomColor=\'transparent\';">'
+                        f'<a class="news-link" href="{link}" target="_blank" rel="noopener">'
                         f'{short}</a>'
                         if link else short
                     )
@@ -1927,9 +1935,7 @@ with macro_tab:
         pub_time = h.get("pub", "")[:16]
         link = h.get("link", "")
         title_html = (
-            f'<a href="{link}" target="_blank" style="color:#2d3748;text-decoration:none;border-bottom:1px dashed transparent;transition:all 0.15s;" '
-            f'onmouseover="this.style.color=\'#2b6cb0\';this.style.borderBottomColor=\'#2b6cb0\';" '
-            f'onmouseout="this.style.color=\'#2d3748\';this.style.borderBottomColor=\'transparent\';">'
+            f'<a class="news-link" href="{link}" target="_blank" rel="noopener">'
             f'{h["title"]}</a>'
             if link else h["title"]
         )
