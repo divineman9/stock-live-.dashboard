@@ -94,6 +94,7 @@ STOCKS = {
     "Quantum": ["IONQ", "RGTI", "QBTS", "QUBT", "ARQQ", "QMCO", "QTUM"],
     "Semis": ["NVDA", "AMD", "AVGO", "INTC", "QCOM", "MU", "MRVL", "TSM", "ASML", "TXN"],
     "Medical AI": ["TEM", "RXRX", "SDGR", "GEHC", "SMMNY", "BFLY", "DOCS", "HCAT", "EXAI", "GH"],
+    "AI Infra": ["IREN", "APLD", "CORZ", "CIFR", "HUT", "WULF", "VRT", "EQIX", "DLR", "CLS"],
 }
 INDICES = ["SPY", "QQQ", "DIA"]
 # Macro indicators: 10Y Treasury Yield, VIX (fear index), XLF (financials ETF)
