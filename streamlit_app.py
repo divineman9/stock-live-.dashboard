@@ -95,6 +95,7 @@ STOCKS = {
     "Semis": ["NVDA", "AMD", "AVGO", "INTC", "QCOM", "MU", "MRVL", "TSM", "ASML", "TXN"],
     "Medical AI": ["TEM", "RXRX", "SDGR", "GEHC", "SMMNY", "BFLY", "DOCS", "HCAT", "EXAI", "GH"],
     "AI Infra": ["IREN", "APLD", "CORZ", "CIFR", "HUT", "WULF", "VRT", "EQIX", "DLR", "CLS"],
+    "Drones": ["AVAV", "PLTR", "KTOS", "JOBY", "ACHR", "UMAC", "DPRO", "NOC", "LMT", "RKLB"],
 }
 INDICES = ["SPY", "QQQ", "DIA"]
 # Macro indicators: 10Y Treasury Yield, VIX (fear index), XLF (financials ETF)
