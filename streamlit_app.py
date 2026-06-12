@@ -88,7 +88,7 @@ STOCKS = {
     "Oil": ["XOM", "CVX", "COP", "OXY", "EOG", "MPC", "PSX"],
     "Gold": ["NEM", "GOLD", "AEM", "FNV", "WPM", "GFI", "KGC"],
     "Copper": ["FCX", "SCCO", "TECK", "HBM", "COPX", "ERO", "IVPAF"],
-    "Space": ["LMT", "NOC", "BA", "RTX", "RKLB", "LUNR", "RDW"],
+    "Space": ["LMT", "NOC", "BA", "RTX", "RKLB", "LUNR", "RDW", "SPCX"],
     "Fertilizers": ["NTR", "MOS", "CF", "FMC", "ICL", "IPI", "CTVA"],
     "Solar": ["ENPH", "SEDG", "FSLR", "RUN", "NOVA", "ARRY", "CSIQ"],
     "Quantum": ["IONQ", "RGTI", "QBTS", "QUBT", "ARQQ", "QMCO", "QTUM"],
